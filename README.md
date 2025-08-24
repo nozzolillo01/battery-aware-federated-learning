@@ -161,13 +161,6 @@ AttributeError: module 'wandb' has no attribute 'init'
 pip install wandb
 ```
 
-**3. Connection errors with wandb**
-If you don't want to use Wandb, you can disable it by modifying `my_strategy.py`:
-```python
-# Comment out this line
-# wandb.init(project="battery-aware-fl", name=f"simple-strategy-{name}")
-```
-
 ## 🔬 Technical Details
 
 ### Machine Learning
