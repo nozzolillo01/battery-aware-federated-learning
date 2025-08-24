@@ -105,15 +105,15 @@ When running for the first time, you'll be prompted to log in to Wandb:
     "loss": 0.6252,
     "accuracy": 0.7709,
     "battery_avg": 0.520,
-    "battery_min": 0.357,
-    "participation_rate": 0.4
+  "battery_min": 0.357,
+  "fairness_jain": 0.62
   },
   "5": {
     "loss": 0.4036,
     "accuracy": 0.8499,
     "battery_avg": 0.336,
-    "battery_min": 0.202,
-    "participation_rate": 0.778
+  "battery_min": 0.202,
+  "fairness_jain": 0.84
   }
 }
 ```
@@ -121,7 +121,7 @@ When running for the first time, you'll be prompted to log in to Wandb:
 **Key insights:**
 - **Accuracy**: Improves from ~10% to ~85% over 5 rounds
 - **Battery health**: Gradually decreases as expected
-- **Participation**: Increases from 40% to 77.8% clients involved
+- **Fairness**: Jain's index increases (più vicino a 1 = selezione più equa)
 
 ## ⚙️ Configuration
 
@@ -179,16 +179,19 @@ pip install wandb
 - **Energy model**: Quadratic weighting for selection probability
 - **Consumption**: Realistic drain during training participation
 - **Recovery**: Natural recharging when idle
-- **Tracking**: Comprehensive fleet statistics and participation monitoring
+- **Tracking**: Comprehensive fleet statistics and fairness monitoring
 
 ## 📊 Key Metrics Tracked
 
-### Core Performance
-- **`loss`**: Model training loss
-- **`accuracy`**: Classification accuracy
-- **`battery_avg`**: Average fleet battery level
-- **`battery_min`**: Minimum battery level across fleet
-- **`participation_rate`**: Percentage of clients that have participated
+### Core Performance and Battery
+- `loss`: Centralized loss on the server test set
+- `accuracy`: Centralized accuracy on the server test set
+- `battery_avg`: Average fleet battery level
+- `battery_min`: Minimum battery level across fleet
+- `fairness_jain`: Jain's index on participation counts (1 = perfettamente equo)
+- `total_energy`: Total energy consumed across all clients
+- `eligible_clients`: Number of fleet clients above the battery threshold
+- `selected_clients`: Clients selected in the current round
 
 ## 🎛️ Customization
 
@@ -202,7 +205,8 @@ recharge_rate = random.uniform(0.02, 0.08)     # Adjust recharge rate
 ### Change Selection Strategy
 Edit `my_strategy.py`:
 ```python
-weights[client_id] = battery_level ** 2  # Try linear, cubic, etc.
+# Use either quadratic or linear weighting
+weights = fleet.calculate_selection_weights(eligible_clients, use_quadratic_weights=True)
 ```
 
 ### Adjust FL Parameters
@@ -218,7 +222,7 @@ local-epochs = 5          # More local training
 ### Real-time (Wandb)
 - Live accuracy/loss curves
 - Battery level trends
-- Participation rate evolution
+- Fairness (Jain's index) evolution
 
 To view the Wandb dashboard:
 1. Log in to [wandb.ai](https://wandb.ai)
@@ -231,29 +235,7 @@ To view the Wandb dashboard:
 - Statistical summaries
 - Performance trends
 
-You can visualize the results.json file using any JSON viewer or with Python:
-```python
-import json
-import matplotlib.pyplot as plt
-
-# Load results
-with open("results.json", "r") as f:
-    results = json.load(f)
-
-# Extract metrics
-rounds = [int(r) for r in results.keys()]
-accuracy = [results[str(r)]["accuracy"] for r in rounds]
-battery_avg = [results[str(r)]["battery_avg"] for r in rounds]
-
-# Plot
-plt.figure(figsize=(10, 6))
-plt.plot(rounds, accuracy, 'b-o', label='Accuracy')
-plt.plot(rounds, battery_avg, 'g-o', label='Avg Battery')
-plt.xlabel('Rounds')
-plt.legend()
-plt.grid(True)
-plt.show()
-```
+You can analyze the results.json file using any JSON viewer or data analysis tool.
 
 ## 🤝 Contributing
 

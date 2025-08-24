@@ -31,13 +31,17 @@ def get_evaluate_fn(testloader, device):
 
 
 def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
+    """Aggregate client metrics using weighted average."""
     accuracies = [num_examples * m["accuracy"] for num_examples, m in metrics]
     total_examples = sum(num_examples for num_examples, _ in metrics)
-    return {"accuracy": sum(accuracies) / total_examples}
+    
+    return {
+        "accuracy": sum(accuracies) / total_examples if total_examples > 0 else 0,
+    }
 
 
 def on_fit_config(server_round: int) -> Metrics:
-    return {"lr": 0.01}
+    return {}
 
 
 def server_fn(context: Context):
@@ -66,6 +70,8 @@ def server_fn(context: Context):
         on_fit_config_fn=on_fit_config,
         evaluate_fn=get_evaluate_fn(testloader, device="cpu"),
         min_battery_threshold=0.2,
+        total_rounds=num_rounds,
+        local_epochs=context.run_config.get("local-epochs", None),
     )
     
     config = ServerConfig(num_rounds=num_rounds)
