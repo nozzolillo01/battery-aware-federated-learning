@@ -42,18 +42,39 @@ app_battery/
 
 ### Prerequisites
 - Python 3.8+
-- PyTorch 2.6.0
-- Flower 1.15.2+
+- Git
 
 ### Installation
+
+1. **Clone the repository**
 ```bash
-git clone <repository-url>
-cd app_battery
+git clone https://github.com/nozzolillo01/battery-aware-federated-learning.git
+cd battery-aware-federated-learning
+```
+
+2. **Create and activate a virtual environment**
+```bash
+# Create virtual environment
+python3 -m venv venv
+
+# Activate it (Linux/Mac)
+source venv/bin/activate
+
+# Activate it (Windows)
+# venv\Scripts\activate
+```
+
+3. **Install dependencies**
+```bash
 pip install -e .
 ```
 
 ### Run Simulation
 ```bash
+# Make sure your virtual environment is activated
+source venv/bin/activate
+
+# Run the federated simulation
 flwr run .
 ```
 
@@ -63,9 +84,18 @@ Loading project configuration...
 Success
 ```
 
+This minimal output confirms the application is running correctly! The simulation is executing in the background.
+
 **Results saved to:**
 - `results.json` - Complete metrics for all rounds
-- Wandb dashboard - Real-time visualization
+- Wandb dashboard - Real-time visualization (requires Wandb account)
+
+**First-time Wandb setup:**
+When running for the first time, you'll be prompted to log in to Wandb:
+1. Create account at [wandb.ai](https://wandb.ai) if you don't have one
+2. Generate API key at [wandb.ai/authorize](https://wandb.ai/authorize)
+3. Enter `2` when prompted for "Use an existing W&B account"
+4. Paste your API key when requested
 
 ## 📈 Sample Results
 
@@ -109,6 +139,33 @@ strategy = BatteryAwareFedAvg(
     min_battery_threshold=0.2,  # 20% minimum battery
     # ... other FL parameters
 )
+```
+
+### Common Issues
+
+**1. Command not found: flwr**
+```
+bash: flwr: command not found
+```
+**Solution**: Make sure you have activated the virtual environment:
+```bash
+source venv/bin/activate
+```
+
+**2. Missing wandb module**
+```
+AttributeError: module 'wandb' has no attribute 'init'
+```
+**Solution**: Install wandb manually if not automatically installed:
+```bash
+pip install wandb
+```
+
+**3. Connection errors with wandb**
+If you don't want to use Wandb, you can disable it by modifying `my_strategy.py`:
+```python
+# Comment out this line
+# wandb.init(project="battery-aware-fl", name=f"simple-strategy-{name}")
 ```
 
 ## 🔬 Technical Details
@@ -170,10 +227,40 @@ local-epochs = 5          # More local training
 - Battery level trends
 - Participation rate evolution
 
+To view the Wandb dashboard:
+1. Log in to [wandb.ai](https://wandb.ai)
+2. Go to your projects
+3. Select the "battery-aware-fl" project
+4. Click on the latest run to view real-time metrics
+
 ### Post-training (results.json)
 - Complete round-by-round metrics
 - Statistical summaries
 - Performance trends
+
+You can visualize the results.json file using any JSON viewer or with Python:
+```python
+import json
+import matplotlib.pyplot as plt
+
+# Load results
+with open("results.json", "r") as f:
+    results = json.load(f)
+
+# Extract metrics
+rounds = [int(r) for r in results.keys()]
+accuracy = [results[str(r)]["accuracy"] for r in rounds]
+battery_avg = [results[str(r)]["battery_avg"] for r in rounds]
+
+# Plot
+plt.figure(figsize=(10, 6))
+plt.plot(rounds, accuracy, 'b-o', label='Accuracy')
+plt.plot(rounds, battery_avg, 'g-o', label='Avg Battery')
+plt.xlabel('Rounds')
+plt.legend()
+plt.grid(True)
+plt.show()
+```
 
 ## 🤝 Contributing
 
