@@ -29,17 +29,23 @@ class FlowerClient(NumPyClient):
     def fit(self, parameters, config):
         set_weights(self.net, parameters)
         
-        train(
+        loss, accuracy = train(
             self.net,
             self.trainloader,
             self.local_epochs,
             self.device,
         )
 
+        # Simple metrics
+        metrics = {
+            "train_loss": loss,
+            "train_accuracy": accuracy,
+        }
+
         return (
             get_weights(self.net),
             len(self.trainloader.dataset),
-            {},
+            metrics,
         )
 
     def evaluate(self, parameters, config):
