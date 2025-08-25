@@ -26,9 +26,10 @@ logging.getLogger().setLevel(logging.CRITICAL)
 class BatteryAwareFedAvg(FedAvg):
 
     def __init__(self, min_battery_threshold: float = 0.2, *args, **kwargs) -> None:
-        # Extract custom kwargs (do not pass to FedAvg)
+        # Receive optional config from server
         self.total_rounds_config = kwargs.pop("total_rounds", None)
         self.local_epochs_config = kwargs.pop("local_epochs", None)
+        self.num_supernodes = kwargs.pop("num_supernodes", None)
 
         super().__init__(*args, **kwargs)
         self.min_battery_threshold = min_battery_threshold
@@ -43,33 +44,12 @@ class BatteryAwareFedAvg(FedAvg):
         wandb.init(project="battery-aware-fl", name=f"run-{name}")
 
         # Print run header (num-supernodes, num-server-rounds, local-epochs)
-        try:
-            num_supernodes = None
-            num_server_rounds = self.total_rounds_config
-            local_epochs = self.local_epochs_config
-
-            # Try to read from pyproject.toml if not provided
-            try:
-                with open("pyproject.toml", "r") as f:
-                    for line in f:
-                        s = line.strip()
-                        if s.startswith("options.num-supernodes"):
-                            num_supernodes = int(s.split("=")[-1].strip())
-                        elif s.startswith("num-server-rounds") and num_server_rounds is None:
-                            num_server_rounds = int(s.split("=")[-1].strip())
-                        elif s.startswith("local-epochs") and local_epochs is None:
-                            local_epochs = int(s.split("=")[-1].strip())
-            except Exception:
-                pass
-
-            if num_supernodes is not None:
-                print(f"num-supernodes = {num_supernodes}")
-            if num_server_rounds is not None:
-                print(f"num-server-rounds = {num_server_rounds}")
-            if local_epochs is not None:
-                print(f"local-epochs = {local_epochs}")
-        except Exception:
-            pass
+        if self.num_supernodes is not None:
+            print(f"num-supernodes = {self.num_supernodes}")
+        if self.total_rounds_config is not None:
+            print(f"num-server-rounds = {self.total_rounds_config}")
+        if self.local_epochs_config is not None:
+            print(f"local-epochs = {self.local_epochs_config}")
 
     def configure_fit(
         self, server_round: int, parameters: Parameters, client_manager
@@ -214,10 +194,11 @@ class BatteryAwareFedAvg(FedAvg):
         # Minimal terminal output: evaluation summary
         try:
             acc = metrics.get("cen_accuracy", 0)
+            suffix = f"/{self.num_supernodes}" if self.num_supernodes is not None else ""
             print(
                 f"[Round {server_round}] loss={loss:.4f} acc={acc:.4f} "
                 f"eligible_clients={battery_metrics['eligible_clients']} "
-                f"selected_clients={self.last_selected_count}"
+                f"selected_clients={self.last_selected_count}{suffix}"
             )
         except Exception:
             pass
