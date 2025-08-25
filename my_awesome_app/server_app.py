@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from flwr.common import Context, ndarrays_to_parameters, Metrics
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from datasets import load_dataset
@@ -48,6 +48,20 @@ def server_fn(context: Context):
     num_rounds = context.run_config["num-server-rounds"]
     fraction_fit = context.run_config["fraction-fit"]
 
+    # Read num-supernodes from pyproject.toml (server side) and pass it to the strategy
+    def read_num_supernodes(default: Optional[int] = None) -> Optional[int]:
+        try:
+            with open("pyproject.toml", "r") as f:
+                for line in f:
+                    s = line.strip()
+                    if s.startswith("options.num-supernodes"):
+                        return int(s.split("=")[-1].strip())
+        except Exception:
+            pass
+        return default
+
+    num_supernodes = read_num_supernodes()
+
     ndarrays = get_weights(Net())
     parameters = ndarrays_to_parameters(ndarrays)
 
@@ -72,6 +86,7 @@ def server_fn(context: Context):
         min_battery_threshold=0.2,
         total_rounds=num_rounds,
         local_epochs=context.run_config.get("local-epochs", None),
+    num_supernodes=num_supernodes,
     )
     
     config = ServerConfig(num_rounds=num_rounds)

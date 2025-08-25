@@ -26,7 +26,7 @@ serverapp = "my_awesome_app.server_app:app"
 clientapp = "my_awesome_app.client_app:app"
 
 [tool.flwr.app.config]
-num-server-rounds = 50
+num-server-rounds = 10
 fraction-fit = 1.0
 local-epochs = 5
 
@@ -34,4 +34,4 @@ local-epochs = 5
 default = "local-simulation"
 
 [tool.flwr.federations.local-simulation]
-options.num-supernodes = 100
+options.num-supernodes = 20
