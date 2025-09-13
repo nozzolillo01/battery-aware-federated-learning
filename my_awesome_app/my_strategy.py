@@ -40,7 +40,7 @@ class BatteryAwareFedAvg(FedAvg):
         self.last_selected_battery_min = None
 
         tz = ZoneInfo("Europe/Rome")
-        name = datetime.now(tz).strftime("%Y-%m-%d_%H:%M:%S")
+        name = datetime.now(tz).strftime("%Y-%m-%d_%H:%M")
         wandb.init(project="battery-aware-fl", name=f"run-{name}")
 
         # Print run header (num-supernodes, num-server-rounds, local-epochs)
