@@ -38,6 +38,19 @@ app_battery/
 └── .gitignore
 ```
 
+### Strategy architecture (overview)
+
+The class `BatteryAwareFedAvg` (in `my_awesome_app/my_strategy.py`) extends Flower's `FedAvg` and keeps the same public API. The selection logic is now organized into small private helpers for clarity:
+
+- `_extract_available_clients`: reuse upstream fit configuration.
+- `_eligible_clients`: filter by minimum battery threshold.
+- `_fallback_topk_by_battery`: deterministic fallback when no clients are eligible.
+- `_probabilistic_selection`: quadratic battery-weighted selection, preserving the original safeguards.
+- `_capture_selected_stats`: stores selection statistics for logging and analysis.
+- `_init_wandb_run`, `_print_run_header`, `_log_selection_to_wandb`: logging utilities.
+
+This refactor improves readability and maintainability without changing the algorithmic behavior, metrics, or WandB keys.
+
 ## 🛠️ Quick Start
 
 ### Prerequisites
@@ -131,6 +144,7 @@ When running for the first time, you'll be prompted to log in to Wandb:
 num-server-rounds = 5    # Number of federated rounds
 fraction-fit = 0.5       # Fraction of clients per round (50%)
 local-epochs = 3         # Local training epochs per client
+min-battery-threshold = 0.2 # Minimum battery level required to be eligible
 ```
 
 ### Battery Strategy (`server_app.py`)
@@ -215,6 +229,26 @@ Edit `pyproject.toml`:
 num-server-rounds = 10    # More rounds
 fraction-fit = 0.3        # Fewer clients per round
 local-epochs = 5          # More local training
+```
+
+### Debug the Battery-Aware Strategy
+You can enable a verbose step-by-step debug mode for client selection:
+
+```bash
+export BATTERY_STRATEGY_DEBUG=1           # Enable debug prints
+export BATTERY_STRATEGY_SEED=42           # (Optional) make selection deterministic
+flwr run .
+```
+
+What you get:
+- Eligible client IDs per round
+- Fallback activation (if no eligible clients)
+- Weights and probabilities used in sampling
+- Final selected clients and their avg/min battery
+
+Unset debug:
+```bash
+unset BATTERY_STRATEGY_DEBUG BATTERY_STRATEGY_SEED
 ```
 
 ## 🔍 Monitoring

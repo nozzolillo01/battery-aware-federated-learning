@@ -11,13 +11,32 @@ class BatterySimulator:
     Tracks battery levels, consumption during training, and recharging when idle.
     """
     
-    def __init__(self, client_id: str):
+    def __init__(self, client_id: str, sensor_type: str = None):
         self.client_id = client_id
         self.battery_level = random.uniform(0.3, 1.0)
-        self.consumption_rate = random.uniform(0.15, 0.35)  # Battery used per training round
-        self.recharge_rate = random.uniform(0.02, 0.08)     # Battery recharged when idle
-        self.total_consumption = 0.0                        # Track total energy consumed
-        self.training_rounds = 0                            # Count of training rounds
+        self.consumption_rate = random.uniform(0.15, 0.35)
+        self.total_consumption = 0.0
+        self.training_rounds = 0
+        if sensor_type is None:
+            self.sensor_type = random.choice(["standard", "high_eff", "low_eff"])
+        else:
+            self.sensor_type = sensor_type
+        if self.sensor_type == "high_eff":
+            self.harvesting_capability = random.uniform(0.06, 0.12)
+        elif self.sensor_type == "low_eff":
+            self.harvesting_capability = random.uniform(0.01, 0.04)
+        else:
+            self.harvesting_capability = random.uniform(0.03, 0.08)
+
+    def recharge_battery(self):
+        """
+        Simulates battery recharging through energy harvesting.
+        Increases battery by a random amount between 0 and harvesting_capability.
+        """
+        harvested = random.uniform(0, self.harvesting_capability)
+        self.battery_level = min(1.0, self.battery_level + harvested)
+        return self.battery_level
+
         
     def can_participate(self, min_threshold: float = 0.2) -> bool:
         """Check if device has enough battery to participate in training."""
@@ -33,13 +52,8 @@ class BatterySimulator:
         self.total_consumption += consumption
         self.training_rounds += 1
     
-    def recharge_battery(self):
-        """Simulate battery recharging during idle periods."""
-        recharge = self.recharge_rate + random.uniform(-0.01, 0.01)
-        self.battery_level = min(1.0, self.battery_level + recharge)
-        
     def get_energy_efficiency(self) -> float:
-        """Calculate energy efficiency as average consumption per round."""
+        """Returns the average energy consumption per training round."""
         if self.training_rounds == 0:
             return 0.0
         return self.total_consumption / self.training_rounds

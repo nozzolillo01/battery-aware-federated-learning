@@ -47,6 +47,7 @@ def on_fit_config(server_round: int) -> Metrics:
 def server_fn(context: Context):
     num_rounds = context.run_config["num-server-rounds"]
     fraction_fit = context.run_config["fraction-fit"]
+    min_battery_threshold = context.run_config["min-battery-threshold"]
 
     # Read num-supernodes from pyproject.toml (server side) and pass it to the strategy
     def read_num_supernodes(default: Optional[int] = None) -> Optional[int]:
@@ -83,10 +84,10 @@ def server_fn(context: Context):
         evaluate_metrics_aggregation_fn=weighted_average,
         on_fit_config_fn=on_fit_config,
         evaluate_fn=get_evaluate_fn(testloader, device="cpu"),
-        min_battery_threshold=0.2,
+        min_battery_threshold=min_battery_threshold,
         total_rounds=num_rounds,
         local_epochs=context.run_config.get("local-epochs", None),
-    num_supernodes=num_supernodes,
+        num_supernodes=num_supernodes,
     )
     
     config = ServerConfig(num_rounds=num_rounds)
