@@ -30,6 +30,7 @@ num-server-rounds = 5
 fraction-fit = 1.0
 local-epochs = 3
 min-battery-threshold = 0.2
+dataset-name = "cifar10"  # Possibili valori: "fmnist" (Fashion-MNIST), "cifar10"
 
 [tool.flwr.federations]
 default = "local-simulation"
