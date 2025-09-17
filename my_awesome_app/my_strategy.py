@@ -1,4 +1,5 @@
-"""Battery-aware federated learning strategy.
+"""
+Battery-aware federated learning strategy.
 
 Core idea
 ---------
@@ -60,9 +61,6 @@ class BatteryAwareFedAvg(FedAvg):
 
         self._init_wandb_run()
         self._print_run_header()
-
-        # Debug disabilitato/rimosso: nessuna gestione di env vars o stampe condizionali
-
 
     def _init_wandb_run(self) -> None:
         """Initialize Weights & Biases run with timestamped name."""

@@ -44,9 +44,7 @@ class BatterySimulator:
     
     def consume_battery(self):
         """Simulate battery consumption during model training."""
-        # Simple consumption with small random variation
         consumption = self.consumption_rate + random.uniform(-0.02, 0.02)
-        
         # Update battery level
         self.battery_level = max(0.0, self.battery_level - consumption)
         self.total_consumption += consumption
