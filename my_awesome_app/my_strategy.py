@@ -34,13 +34,10 @@ class BatteryAwareFedAvg(FedAvg):
         self.total_rounds_config = kwargs.pop("total_rounds", None)
         self.local_epochs_config = kwargs.pop("local_epochs", None)
         self.num_supernodes = kwargs.pop("num_supernodes", None)
-        min_battery_threshold = float(kwargs.pop("min_battery_threshold", 0.2))
+        self.min_battery_threshold = float(kwargs.pop("min_battery_threshold", 0.0))
 
         # Init parent with the remaining kwargs
         super().__init__(*args, **kwargs)
-
-        # Store threshold for later use
-        self.min_battery_threshold = min_battery_threshold
 
         self.fleet_manager = FleetManager()
         self.results_to_save = {}
@@ -48,12 +45,12 @@ class BatteryAwareFedAvg(FedAvg):
         self.last_selected_battery_avg = None
         self.last_selected_battery_min = None
 
-        # Tracking stato per visualizzazione dettagliata su wandb
+        # Tracking state for detailed wandb visualization
         self._prev_battery_levels: Dict[str, float] = {}
-        # Nessun buffer cumulativo: useremo una tabella separata per ogni round
-        self._client_id_order = []  # ordine stabile dei client visti
-        self._rounds_since_selected: Dict[str, int] = {}  # contatore round da ultima selezione
+        self._client_id_order = [] 
+        self._rounds_since_selected: Dict[str, int] = {} 
 
+        # Initialize Weights & Biases run and print header
         self._init_wandb_run()
         self._print_run_header()
 
@@ -63,7 +60,7 @@ class BatteryAwareFedAvg(FedAvg):
         Creates a unique run name based on current date and time.
         """
         tz = ZoneInfo("Europe/Rome")
-        timestamp = datetime.now(tz).strftime("%Y-%m-%d_%H:%M")
+        timestamp = datetime.now(tz).strftime("%Y-%m-%d_%H:%M:%S")
         wandb.init(
             project="FL", 
             name=f"run-{timestamp}",
@@ -167,32 +164,26 @@ class BatteryAwareFedAvg(FedAvg):
         weights_map = self.fleet_manager.calculate_selection_weights([c.cid for c in eligible_clients])
         weights = np.array([weights_map[c.cid] for c in eligible_clients])
         
-        if weights.sum() > 0:
-            # Normalize weights to probabilities
-            probs = weights / weights.sum()
+        # Normalize weights to probabilities
+        probs = weights / weights.sum()
+        
+        # Select at least 1, at most half of eligible clients, but minimum 2 if possible
+        num_to_select = max(1, min(len(eligible_clients), len(eligible_clients) // 2))
+        if num_to_select < 2 and len(eligible_clients) >= 2:
+            num_to_select = 2
             
-            # Select at least 1, at most half of eligible clients, but minimum 2 if possible
-            num_to_select = max(1, min(len(eligible_clients), len(eligible_clients) // 2))
-            if num_to_select < 2 and len(eligible_clients) >= 2:
-                num_to_select = 2
-                
-            # Probabilistic selection based on battery weights
-            idx = np.random.choice(len(eligible_clients), size=num_to_select, replace=False, p=probs)
-            selected_clients = [eligible_clients[i] for i in idx]
+        # Probabilistic selection based on battery weights
+        idx = np.random.choice(len(eligible_clients), size=num_to_select, replace=False, p=probs)
+        selected_clients = [eligible_clients[i] for i in idx]
+        
+        # Map probabilities for all eligible clients
+        for i, c in enumerate(eligible_clients):
+            prob_map[c.cid] = float(probs[i])
             
-            # Map probabilities for all eligible clients
-            for i, c in enumerate(eligible_clients):
-                prob_map[c.cid] = float(probs[i])
-                
-            # Non-eligible clients have 0.0 probability
-            for c in available_clients:
-                if c.cid not in prob_map:
-                    prob_map[c.cid] = 0.0
-        else:
-            # Fallback if all weights are 0: select up to 2 clients deterministically
-            selected_clients = eligible_clients[:max(1, min(2, len(eligible_clients)))]
-            for c in available_clients:
-                prob_map[c.cid] = 1.0 if c in selected_clients else 0.0
+        # Non-eligible clients have 0.0 probability
+        for c in available_clients:
+            if c.cid not in prob_map:
+                prob_map[c.cid] = 0.0
                 
         return selected_clients, prob_map
 
@@ -438,19 +429,7 @@ class BatteryAwareFedAvg(FedAvg):
             "selected_battery_avg": round(self.last_selected_battery_avg, 3) if self.last_selected_battery_avg is not None else None,
             "selected_battery_min": round(self.last_selected_battery_min, 3) if self.last_selected_battery_min is not None else None,
         }
-        
-    def _save_results_to_file(self, server_round: int, analysis_results: Dict[str, Any]) -> None:
-        """
-        Save evaluation results to JSON file.
-        
-        Args:
-            server_round: Current round number
-            analysis_results: Results to save
-        """
-        self.results_to_save[server_round] = analysis_results
-        with open("results.json", "w") as f:
-            json.dump(self.results_to_save, f, indent=2)
-            
+     
     def _log_results_to_wandb(self, server_round: int, analysis_results: Dict[str, Any]) -> None:
         """
         Log evaluation results to Weights & Biases.
@@ -511,9 +490,6 @@ class BatteryAwareFedAvg(FedAvg):
         
         # Prepare comprehensive evaluation metrics
         analysis_results = self._prepare_evaluation_metrics(server_round, loss, metrics)
-        
-        # Save results to file
-        self._save_results_to_file(server_round, analysis_results)
         
         # Log to Weights & Biases
         self._log_results_to_wandb(server_round, analysis_results)
