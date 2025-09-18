@@ -1,57 +1,82 @@
 # 🔋 Battery-Aware Federated Learning
 
-A sophisticated federated learning system that incorporates **battery-aware client selection** to optimize energy efficiency in mobile and IoT environments.
+A sophisticated federated learning system that incorporates **battery-aware client selection** to optimize energy efficiency in mobile and IoT environments. This project demonstrates how intelligent client selection strategies can enhance battery life while maintaining model performance in resource-constrained federated learning scenarios.
 
-## 🌟 Features
+## 🌟 Key Features
 
-### 🎯 **Smart Client Selection**
-- **Quadratic weighting**: Selection probability ∝ `battery_level²`
-- **Minimum threshold**: 20% battery requirement for participation
-- **Emergency fallback**: Automatic selection of highest battery clients when needed
-- **Fairness monitoring**: Tracks participation rates across all clients
+### 🎯 Smart Client Selection
+- **Quadratic Battery Weighting**: Selection probability ∝ `battery_level²` to prioritize devices with higher battery levels
+- **Configurable Thresholds**: Minimum 20% battery requirement for participation (customizable)
+- **Emergency Fallback**: Automatic selection of highest battery clients when needed
+- **Fairness Monitoring**: Comprehensive tracking of participation rates across all clients via Jain's index
 
-### 🔬 **Realistic Battery Simulation**
-- **Dynamic consumption**: 15-35% battery drain during training
-- **Natural recharging**: 2-8% battery recovery when idle
-- **Individual profiles**: Each client has unique consumption patterns
-- **Fleet management**: Comprehensive battery health monitoring
+### 🔬 Realistic Battery Simulation
+- **Dynamic Energy Consumption**: 15-35% battery drain during model training phases
+- **Natural Recharging**: 2-8% battery recovery when clients are idle
+- **Individual Device Profiles**: Each client has unique consumption patterns
+- **Fleet Management**: Centralized tracking of all device battery states
 
-### 🚀 **Clean Execution**
-- **Silent operation**: Minimal terminal output (`Loading project configuration... Success`)
-- **Complete logging**: All metrics saved to `results.json`
-- **Real-time monitoring**: Wandb integration for live visualization
-- **Error resilience**: Robust fallback mechanisms
+### 📊 Comprehensive Monitoring
+- **Complete Logging**: All metrics automatically saved to `results.json`
+- **Real-time Visualization**: Weights & Biases (W&B) integration for live experiment tracking
+- **Detailed Battery Analytics**: Monitor min/avg battery levels, energy consumption, and fairness metrics
+- **Client Participation Analysis**: Track selection probabilities and rounds since last selection
 
-## 📊 Architecture
+## 📋 Project Structure
 
 ```
 app_battery/
 ├── my_awesome_app/
-│   ├── task.py              # CNN model + Fashion-MNIST data handling
+│   ├── task.py              # CNN model + Fashion-MNIST/CIFAR10 data handling
 │   ├── battery_simulator.py # Battery simulation & fleet management
 │   ├── my_strategy.py       # Battery-aware client selection strategy
-│   ├── client_app.py        # Federated learning client
-│   ├── server_app.py        # Federated learning server
+│   ├── client_app.py        # Federated learning client implementation
+│   ├── server_app.py        # Federated learning server coordinator
 │   └── __init__.py
 ├── pyproject.toml           # Project configuration
 ├── README.md
 └── .gitignore
 ```
 
-### Strategy architecture (overview)
+## 🧰 Technical Architecture
 
-The class `BatteryAwareFedAvg` (in `my_awesome_app/my_strategy.py`) extends Flower's `FedAvg` and keeps the same public API. The selection logic is now organized into small private helpers for clarity:
+### Battery-Aware Selection Strategy (`my_strategy.py`)
+The `BatteryAwareFedAvg` class extends Flower's `FedAvg` strategy with energy-aware client selection:
 
-- `_extract_available_clients`: reuse upstream fit configuration.
-- `_eligible_clients`: filter by minimum battery threshold.
-- `_fallback_topk_by_battery`: deterministic fallback when no clients are eligible.
-- `_probabilistic_selection`: quadratic battery-weighted selection, preserving the original safeguards.
-- `_capture_selected_stats`: stores selection statistics for logging and analysis.
-- `_init_wandb_run`, `_print_run_header`, `_log_selection_to_wandb`: logging utilities.
+```python
+# Selection probability is proportional to the square of battery level
+P(client_i) = (battery_level_i^2) / Σ(battery_level_j^2)
+```
 
-This refactor improves readability and maintainability without changing the algorithmic behavior, metrics, or WandB keys.
+#### Core Components:
+- **Client Selection Pipeline**: 
+  - Extract available clients → Filter by battery threshold → Apply probabilistic selection
+  - Fallback to deterministic selection when necessary
+  
+- **Monitoring & Evaluation**: 
+  - Battery metrics extraction → Results preparation → W&B logging
+  - Fairness analysis using Jain's index
 
-## 🛠️ Quick Start
+### Battery Simulation (`battery_simulator.py`)
+Two key classes manage device energy states:
+
+1. **BatterySimulator**: Handles individual client battery levels with:
+   - Realistic discharge rates during training
+   - Recovery when idle
+   - Randomized consumption profiles
+
+2. **FleetManager**: Centralized service that:
+   - Tracks all client battery states
+   - Identifies eligible clients
+   - Calculates selection weights
+   - Provides fleet-wide statistics
+
+### Machine Learning Components (`task.py`)
+- **CNN Architecture**: LeNet-style convolutional neural network
+- **Datasets**: Fashion-MNIST (default) and CIFAR10 support
+- **Training Logic**: Local training epochs, optimizers, and data loading
+
+## 🚀 Getting Started
 
 ### Prerequisites
 - Python 3.8+
@@ -61,14 +86,14 @@ This refactor improves readability and maintainability without changing the algo
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/nozzolillo01/battery-aware-federated-learning.git
+git clone https://github.com/yourusername/battery-aware-federated-learning.git
 cd battery-aware-federated-learning
 ```
 
 2. **Create and activate a virtual environment**
 ```bash
 # Create virtual environment
-python3 -m venv venv
+python -m venv venv
 
 # Activate it (Linux/Mac)
 source venv/bin/activate
@@ -97,117 +122,54 @@ Loading project configuration...
 Success
 ```
 
-This minimal output confirms the application is running correctly! The simulation is executing in the background.
+### Configuration
 
-**Results saved to:**
-- `results.json` - Complete metrics for all rounds
-- Wandb dashboard - Real-time visualization (requires Wandb account)
+Edit `pyproject.toml` to customize:
+```toml
+[tool.flwr.app.config]
+num-server-rounds = 5    # Number of federated rounds
+fraction-fit = 0.5       # Fraction of clients per round (50%)
+local-epochs = 3         # Local training epochs per client
+min-battery-threshold = 0.2 # Minimum battery level required
+```
 
-**First-time Wandb setup:**
-When running for the first time, you'll be prompted to log in to Wandb:
-1. Create account at [wandb.ai](https://wandb.ai) if you don't have one
-2. Generate API key at [wandb.ai/authorize](https://wandb.ai/authorize)
-3. Enter `2` when prompted for "Use an existing W&B account"
-4. Paste your API key when requested
+## 📈 Results Analysis
 
-## 📈 Sample Results
-
+### Sample Metrics
 ```json
 {
   "1": {
     "loss": 0.6252,
     "accuracy": 0.7709,
     "battery_avg": 0.520,
-  "battery_min": 0.357,
-  "fairness_jain": 0.62
+    "battery_min": 0.357,
+    "fairness_jain": 0.62
   },
   "5": {
     "loss": 0.4036,
     "accuracy": 0.8499,
     "battery_avg": 0.336,
-  "battery_min": 0.202,
-  "fairness_jain": 0.84
+    "battery_min": 0.202,
+    "fairness_jain": 0.84
   }
 }
 ```
 
-**Key insights:**
-- **Accuracy**: Improves from ~10% to ~85% over 5 rounds
-- **Battery health**: Gradually decreases as expected
-- **Fairness**: Jain's index increases (più vicino a 1 = selezione più equa)
+**Key Metrics Explained:**
+- **Loss**: Model loss on centralized test set
+- **Accuracy**: Classification accuracy
+- **Battery Metrics**: Average and minimum battery levels across all devices
+- **Fairness Index**: Jain's fairness index for client participation (1.0 = perfectly fair)
 
-## ⚙️ Configuration
+## 🔍 Advanced Monitoring
 
-### Training Parameters (`pyproject.toml`)
-```toml
-[tool.flwr.app.config]
-num-server-rounds = 5    # Number of federated rounds
-fraction-fit = 0.5       # Fraction of clients per round (50%)
-local-epochs = 3         # Local training epochs per client
-min-battery-threshold = 0.2 # Minimum battery level required to be eligible
-```
+### Real-time (Weights & Biases)
+- Live accuracy and loss curves
+- Battery level tracking across rounds
+- Fairness (Jain's index) evolution
+- Client selection visualization
 
-### Battery Strategy (`server_app.py`)
-```python
-strategy = BatteryAwareFedAvg(
-    min_battery_threshold=0.2,  # 20% minimum battery
-    # ... other FL parameters
-)
-```
-
-### Common Issues
-
-**1. Command not found: flwr**
-```
-bash: flwr: command not found
-```
-**Solution**: Make sure you have activated the virtual environment:
-```bash
-source venv/bin/activate
-```
-
-**2. Missing wandb module**
-```
-AttributeError: module 'wandb' has no attribute 'init'
-```
-**Solution**: Install wandb manually if not automatically installed:
-```bash
-pip install wandb
-```
-
-## 🔬 Technical Details
-
-### Machine Learning
-- **Model**: LeNet-style CNN (6→16 conv channels, 3 FC layers)
-- **Dataset**: Fashion-MNIST (10 classes, federated partitioning)
-- **Optimizer**: Adam with CrossEntropy loss
-- **Framework**: PyTorch 2.6.0
-
-### Federated Learning
-- **Framework**: Flower 1.15.2+ with simulation mode
-- **Strategy**: Extended FedAvg with battery-aware selection
-- **Aggregation**: Weighted averaging based on dataset sizes
-- **Evaluation**: Centralized on server with federated metrics
-
-### Battery Simulation
-- **Energy model**: Quadratic weighting for selection probability
-- **Consumption**: Realistic drain during training participation
-- **Recovery**: Natural recharging when idle
-- **Tracking**: Comprehensive fleet statistics and fairness monitoring
-
-## 📊 Key Metrics Tracked
-
-### Core Performance and Battery
-- `loss`: Centralized loss on the server test set
-- `accuracy`: Centralized accuracy on the server test set
-- `battery_avg`: Average fleet battery level
-- `battery_min`: Minimum battery level across fleet
-- `fairness_jain`: Jain's index on participation counts (1 = perfettamente equo)
-- `total_energy`: Total energy consumed across all clients
-- `eligible_clients`: Number of fleet clients above the battery threshold
-- `selected_clients`: Clients selected in the current round
-
-## 🎛️ Customization
+## 🔧 Customization Options
 
 ### Modify Battery Behavior
 Edit `battery_simulator.py`:
@@ -216,14 +178,7 @@ consumption_rate = random.uniform(0.15, 0.35)  # Adjust drain rate
 recharge_rate = random.uniform(0.02, 0.08)     # Adjust recharge rate
 ```
 
-### Change Selection Strategy
-Edit `my_strategy.py`:
-```python
-# Use either quadratic or linear weighting
-weights = fleet.calculate_selection_weights(eligible_clients, use_quadratic_weights=True)
-```
-
-### Adjust FL Parameters
+### Adjust Federated Learning Parameters
 Edit `pyproject.toml`:
 ```toml
 num-server-rounds = 10    # More rounds
@@ -231,63 +186,19 @@ fraction-fit = 0.3        # Fewer clients per round
 local-epochs = 5          # More local training
 ```
 
-### Debug the Battery-Aware Strategy
-You can enable a verbose step-by-step debug mode for client selection:
-
-```bash
-export BATTERY_STRATEGY_DEBUG=1           # Enable debug prints
-export BATTERY_STRATEGY_SEED=42           # (Optional) make selection deterministic
-flwr run .
-```
-
-What you get:
-- Eligible client IDs per round
-- Fallback activation (if no eligible clients)
-- Weights and probabilities used in sampling
-- Final selected clients and their avg/min battery
-
-Unset debug:
-```bash
-unset BATTERY_STRATEGY_DEBUG BATTERY_STRATEGY_SEED
-```
-
-## 🔍 Monitoring
-
-### Real-time (Wandb)
-- Live accuracy/loss curves
-- Battery level trends
-- Fairness (Jain's index) evolution
-
-To view the Wandb dashboard:
-1. Log in to [wandb.ai](https://wandb.ai)
-2. Go to your projects
-3. Select the "battery-aware-fl" project
-4. Click on the latest run to view real-time metrics
-
-### Post-training (results.json)
-- Complete round-by-round metrics
-- Statistical summaries
-- Performance trends
-
-You can analyze the results.json file using any JSON viewer or data analysis tool.
-
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 
-Apache-2.0 License
+This project is licensed under the Apache-2.0 License - see the LICENSE file for details.
 
-## 🏗️ Built With
+## 🔧 Built With
 
-- **[Flower](https://flower.ai/)** - Federated learning framework
-- **[PyTorch](https://pytorch.org/)** - Machine learning library
-- **[Wandb](https://wandb.ai/)** - Experiment tracking
+- **[Flower](https://flower.ai/)** - Federated Learning framework
+- **[PyTorch](https://pytorch.org/)** - Machine Learning library
+- **[Weights & Biases](https://wandb.ai/)** - Experiment tracking
 - **[Fashion-MNIST](https://github.com/zalandoresearch/fashion-mnist)** - Dataset
 
 ---

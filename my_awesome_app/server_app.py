@@ -1,6 +1,11 @@
+"""
+Server application for the battery-aware federated learning system.
+Configures and runs the FL server with energy-aware client selection.
+"""
+
 import logging
 import os
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 from flwr.common import Context, ndarrays_to_parameters, Metrics
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from datasets import load_dataset
@@ -9,13 +14,22 @@ from torch.utils.data import DataLoader
 from my_awesome_app.task import Net, get_weights, set_weights, test, get_transforms
 from my_awesome_app.my_strategy import BatteryAwareFedAvg
 
+# Configure logging and environment
 logging.getLogger("flwr").setLevel(logging.CRITICAL)
 os.environ["WANDB_SILENT"] = "true"
 
 
-
 def get_evaluate_fn(testloader, device):
-
+    """
+    Create an evaluation function for the global model.
+    
+    Args:
+        testloader: DataLoader with test data
+        device: Device to run evaluation on
+        
+    Returns:
+        function: Evaluation function for the federated strategy
+    """
     def evaluate(server_round, parameters_ndarrays, config):
         net = Net()
         set_weights(net, parameters_ndarrays)
@@ -27,7 +41,15 @@ def get_evaluate_fn(testloader, device):
 
 
 def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
-    """Aggregate client metrics using weighted average."""
+    """
+    Aggregate client metrics using weighted average.
+    
+    Args:
+        metrics: List of tuples (sample_size, metrics_dict)
+        
+    Returns:
+        Metrics: Aggregated metrics
+    """
     accuracies = [num_examples * m["accuracy"] for num_examples, m in metrics]
     total_examples = sum(num_examples for num_examples, _ in metrics)
     
@@ -36,32 +58,64 @@ def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
     }
 
 
-def on_fit_config(server_round: int) -> Metrics:
+def on_fit_config(server_round: int) -> Dict:
+    """
+    Return config for client fitting.
+    
+    Args:
+        server_round: Current round number
+        
+    Returns:
+        Dict: Configuration parameters for client training
+    """
     return {}
 
 
-def server_fn(context: Context):
+def read_num_supernodes(default: Optional[int] = None) -> Optional[int]:
+    """
+    Extract num-supernodes parameter from pyproject.toml.
+    
+    Args:
+        default: Default value if not found or error occurs
+        
+    Returns:
+        Optional[int]: Number of supernodes or default
+    """
+    try:
+        with open("pyproject.toml", "r") as f:
+            for line in f:
+                s = line.strip()
+                if s.startswith("options.num-supernodes"):
+                    return int(s.split("=")[-1].strip())
+    except Exception:
+        pass
+    return default
+
+
+def server_fn(context: Context) -> ServerAppComponents:
+    """
+    Create and configure the FL server components.
+    
+    Args:
+        context: Server context from Flower
+        
+    Returns:
+        ServerAppComponents: Configured server components
+    """
+    # Extract configuration
     num_rounds = context.run_config["num-server-rounds"]
     fraction_fit = context.run_config["fraction-fit"]
     min_battery_threshold = context.run_config["min-battery-threshold"]
-
-    # Read num-supernodes from pyproject.toml (server side) and pass it to the strategy
-    def read_num_supernodes(default: Optional[int] = None) -> Optional[int]:
-        try:
-            with open("pyproject.toml", "r") as f:
-                for line in f:
-                    s = line.strip()
-                    if s.startswith("options.num-supernodes"):
-                        return int(s.split("=")[-1].strip())
-        except Exception:
-            pass
-        return default
-
+    local_epochs = context.run_config.get("local-epochs", None)
+    
+    # Read additional configuration from file
     num_supernodes = read_num_supernodes()
 
+    # Initialize model parameters
     ndarrays = get_weights(Net())
     parameters = ndarrays_to_parameters(ndarrays)
 
+    # Load and prepare centralized test dataset
     testset = load_dataset("zalando-datasets/fashion_mnist")["test"]
     
     def apply_transforms(batch):
@@ -72,6 +126,7 @@ def server_fn(context: Context):
     testset_transformed = testset.with_transform(apply_transforms)
     testloader = DataLoader(testset_transformed, batch_size=32)
 
+    # Create battery-aware strategy
     strategy = BatteryAwareFedAvg(
         fraction_fit=fraction_fit,
         fraction_evaluate=1.0,
@@ -82,13 +137,15 @@ def server_fn(context: Context):
         evaluate_fn=get_evaluate_fn(testloader, device="cpu"),
         min_battery_threshold=min_battery_threshold,
         total_rounds=num_rounds,
-        local_epochs=context.run_config.get("local-epochs", None),
+        local_epochs=local_epochs,
         num_supernodes=num_supernodes,
     )
     
+    # Configure server
     config = ServerConfig(num_rounds=num_rounds)
 
     return ServerAppComponents(strategy=strategy, config=config)
 
 
+# Register server app
 app = ServerApp(server_fn=server_fn)
