@@ -19,7 +19,6 @@ from flwr.server.strategy import FedAvg
 import numpy as np
 import wandb
 import json
-import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from typing import Any, Dict, List, Tuple, Optional

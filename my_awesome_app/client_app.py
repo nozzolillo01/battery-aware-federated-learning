@@ -1,16 +1,7 @@
-"""my-awesome-app: A Flower / PyTorch app."""
-
-import logging
-import os
 import torch
 from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context, ConfigRecord
 from my_awesome_app.task import Net, get_weights, load_data, set_weights, test, train
-
-logging.getLogger("flwr").setLevel(logging.CRITICAL)
-logging.getLogger().setLevel(logging.CRITICAL)
-logging.getLogger("ray").setLevel(logging.CRITICAL)
-os.environ["RAY_DEDUP_LOGS"] = "0"
 
 
 class FlowerClient(NumPyClient):
