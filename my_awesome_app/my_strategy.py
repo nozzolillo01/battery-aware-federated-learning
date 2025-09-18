@@ -26,10 +26,6 @@ from typing import Any, Dict, List, Tuple, Optional
 
 from .battery_simulator import FleetManager
 
-logging.getLogger("flwr").setLevel(logging.CRITICAL)
-logging.getLogger("wandb").setLevel(logging.CRITICAL)
-logging.getLogger().setLevel(logging.CRITICAL)
-
 
 class BatteryAwareFedAvg(FedAvg):
     """Energy-aware variant of FedAvg with quadratic battery-based selection."""
@@ -66,7 +62,7 @@ class BatteryAwareFedAvg(FedAvg):
         """Initialize Weights & Biases run with timestamped name."""
         tz = ZoneInfo("Europe/Rome")
         name = datetime.now(tz).strftime("%Y-%m-%d_%H:%M")
-        wandb.init(project="battery-aware-fl", name=f"run-{name}")
+        wandb.init(project="FL", name=f"run-{name}")
 
     def _print_run_header(self) -> None:
         """Print minimal run configuration header to the terminal."""
