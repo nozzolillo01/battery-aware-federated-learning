@@ -57,41 +57,6 @@ def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
         "accuracy": sum(accuracies) / total_examples if total_examples > 0 else 0,
     }
 
-
-def on_fit_config(server_round: int) -> Dict:
-    """
-    Return config for client fitting.
-    
-    Args:
-        server_round: Current round number
-        
-    Returns:
-        Dict: Configuration parameters for client training
-    """
-    return {}
-
-
-def read_num_supernodes(default: Optional[int] = None) -> Optional[int]:
-    """
-    Extract num-supernodes parameter from pyproject.toml.
-    
-    Args:
-        default: Default value if not found or error occurs
-        
-    Returns:
-        Optional[int]: Number of supernodes or default
-    """
-    try:
-        with open("pyproject.toml", "r") as f:
-            for line in f:
-                s = line.strip()
-                if s.startswith("options.num-supernodes"):
-                    return int(s.split("=")[-1].strip())
-    except Exception:
-        pass
-    return default
-
-
 def server_fn(context: Context) -> ServerAppComponents:
     """
     Create and configure the FL server components.
@@ -109,14 +74,14 @@ def server_fn(context: Context) -> ServerAppComponents:
     local_epochs = context.run_config.get("local-epochs", None)
     
     # Read additional configuration from file
-    num_supernodes = read_num_supernodes()
+    num_supernodes = context.run_config.get("num-supernodes", 2)
 
     # Initialize model parameters
     ndarrays = get_weights(Net())
     parameters = ndarrays_to_parameters(ndarrays)
 
     # Load and prepare centralized test dataset
-    testset = load_dataset("zalando-datasets/fashion_mnist")["test"]
+    testset = load_dataset("fashion_mnist")["test"]
     
     def apply_transforms(batch):
         transforms = get_transforms()
@@ -133,7 +98,6 @@ def server_fn(context: Context) -> ServerAppComponents:
         min_available_clients=2,
         initial_parameters=parameters,
         evaluate_metrics_aggregation_fn=weighted_average,
-        on_fit_config_fn=on_fit_config,
         evaluate_fn=get_evaluate_fn(testloader, device="cpu"),
         min_battery_threshold=min_battery_threshold,
         total_rounds=num_rounds,

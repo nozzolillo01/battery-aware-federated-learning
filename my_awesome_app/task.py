@@ -3,8 +3,8 @@ Task module for federated learning with Fashion-MNIST.
 Implements a LeNet-style CNN model and data loading utilities.
 """
 
-import warnings
-warnings.filterwarnings("ignore", category=FutureWarning)
+#import warnings
+#warnings.filterwarnings("ignore", category=FutureWarning)
 
 import torch
 import torch.nn as nn
@@ -16,58 +16,28 @@ from flwr_datasets import FederatedDataset
 class Net(nn.Module):
     """
     LeNet-style CNN model for image classification.
-    Designed for efficiency in federated learning scenarios with
-    limited computational resources.
-    
-    Architecture:
-        - 2 convolutional layers with max pooling
-        - 3 fully connected layers
-        - ReLU activation functions
     """
     def __init__(self, num_classes: int = 10) -> None:
         super(Net, self).__init__()
-        # First convolutional block
         self.conv1 = nn.Conv2d(1, 6, kernel_size=5)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        
-        # Second convolutional block
         self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
-        
-        # Fully connected layers
         self.fc1 = nn.Linear(16 * 4 * 4, 120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, num_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass through the network.
-        
-        Args:
-            x: Input tensor of shape (batch_size, 1, 28, 28)
-            
-        Returns:
-            torch.Tensor: Output logits of shape (batch_size, num_classes)
-        """
-        # First convolutional block
         x = self.pool(F.relu(self.conv1(x)))
-        
-        # Second convolutional block
         x = self.pool(F.relu(self.conv2(x)))
-        
-        # Flatten for fully connected layers
         x = x.view(-1, 16 * 4 * 4)
-        
-        # Fully connected layers
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        
-        # Output layer (no activation - will be applied in loss function)
         return self.fc3(x)
 
-# Global variable to store dataset (loaded only once for efficiency)
+# Global variable to store dataset
 fds = None
 
-def load_data(partition_id: int, num_partitions: int):
+def load_data(partition_id: int, num_partitions: int) -> tuple:
     """
     Load a federated dataset partition and create train/test data loaders.
     
@@ -91,7 +61,7 @@ def load_data(partition_id: int, num_partitions: int):
     partition = fds.load_partition(partition_id)
     
     # Split into train and test sets
-    partition_train_test = partition.train_test_split(test_size=0.2, seed=42)
+    partition_train_test = partition.train_test_split(test_size=0.2)
     
     # Create preprocessing transforms
     pytorch_transforms = Compose([ToTensor(), Normalize((0.5,), (0.5,))])
@@ -126,43 +96,25 @@ def train(net, trainloader, epochs: int, device: torch.device):
     Returns:
         tuple: (final_loss, final_accuracy)
     """
-    # Set up loss function and optimizer
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(net.parameters())
     
-    # Set model to training mode
     net.train()
     
-    # Training loop
     for epoch in range(epochs):
         correct, total, epoch_loss = 0, 0, 0.0
-        
-        # Process each batch
+
         for batch in trainloader:
-            # Move data to the appropriate device
             images, labels = batch["image"].to(device), batch["label"].to(device)
-            
-            # Zero gradients
             optimizer.zero_grad()
-            
-            # Forward pass
             outputs = net(images)
-            
-            # Calculate loss
             loss = criterion(outputs, labels)
-            
-            # Backward pass
             loss.backward()
-            
-            # Update weights
             optimizer.step()
-            
-            # Track statistics
             epoch_loss += loss.item()
             total += labels.size(0)
             correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
-        
-        # Calculate epoch metrics
+
         epoch_loss /= len(trainloader)
         epoch_acc = correct / total
     
@@ -186,27 +138,18 @@ def test(net, testloader, device: torch.device):
     criterion = torch.nn.CrossEntropyLoss()
     correct, total, loss = 0, 0, 0.0
     
-    # Set model to evaluation mode
     net.eval()
-    
-    # No gradient computation needed for evaluation
+
     with torch.no_grad():
         for batch in testloader:
-            # Move data to the appropriate device
+
             images, labels = batch["image"].to(device), batch["label"].to(device)
-            
-            # Forward pass
             outputs = net(images)
-            
-            # Calculate loss
             loss += criterion(outputs, labels).item()
-            
-            # Calculate accuracy
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-    
-    # Calculate average metrics
+
     average_loss = loss / len(testloader)
     accuracy = correct / total
     
