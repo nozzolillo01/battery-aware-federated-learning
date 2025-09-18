@@ -43,7 +43,7 @@ class BatterySimulator:
         self.battery_level = min(1.0, self.battery_level + harvested)
         return self.battery_level
         
-    def can_participate(self, min_threshold: float = 0.2) -> bool:
+    def can_participate(self, min_threshold: float = 0.0) -> bool:
         """
         Check if device has enough battery to participate in training.
         
@@ -58,10 +58,8 @@ class BatterySimulator:
     def consume_battery(self) -> None:
         """
         Simulate battery consumption during model training.
-        Adds randomness to consumption rate to model real-world variability.
         """
-        consumption = self.consumption_rate + random.uniform(-0.02, 0.02)
-        # Update battery level with a floor of 0.0
+        consumption = self.consumption_rate
         self.battery_level = max(0.0, self.battery_level - consumption)
         self.total_consumption += consumption
         self.training_rounds += 1
@@ -114,7 +112,7 @@ class FleetManager:
             self.add_client(client_id)
         return self.clients[client_id].battery_level
     
-    def get_eligible_clients(self, client_ids: List[str], min_threshold: float = 0.2) -> List[str]:
+    def get_eligible_clients(self, client_ids: List[str], min_threshold: float = 0.0) -> List[str]:
         """
         Return list of clients with battery above minimum threshold.
         
@@ -177,7 +175,7 @@ class FleetManager:
                 # Recharge battery for idle clients
                 self.clients[client_id].recharge_battery()
     
-    def get_fleet_stats(self, min_threshold: float = 0.2) -> Dict[str, float]:
+    def get_fleet_stats(self, min_threshold: float = 0.0) -> Dict[str, float]:
         """
         Get comprehensive statistics about the fleet's battery status.
         
