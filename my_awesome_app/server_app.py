@@ -1,5 +1,3 @@
-"""Simple battery-aware federated learning server."""
-
 import logging
 import os
 from typing import List, Tuple, Optional
@@ -12,10 +10,8 @@ from my_awesome_app.task import Net, get_weights, set_weights, test, get_transfo
 from my_awesome_app.my_strategy import BatteryAwareFedAvg
 
 logging.getLogger("flwr").setLevel(logging.CRITICAL)
-logging.getLogger().setLevel(logging.CRITICAL)
-logging.getLogger("ray").setLevel(logging.CRITICAL)
 os.environ["WANDB_SILENT"] = "true"
-os.environ["RAY_DEDUP_LOGS"] = "0"
+
 
 
 def get_evaluate_fn(testloader, device):
