@@ -37,11 +37,14 @@ class BatterySimulator:
         Increases battery by a random amount between 0 and harvesting_capability.
         
         Returns:
-            float: The updated battery level.
+            float: The amount of battery harvested this cycle.
         """
+        previous_level = self.battery_level
         harvested = random.uniform(0, self.harvesting_capability)
-        self.battery_level = min(1.0, self.battery_level + harvested)
-        return self.battery_level
+        self.battery_level = min(1.0, previous_level + harvested)
+        effective_harvested = self.battery_level - previous_level
+        return effective_harvested
+
         
     def can_participate(self, min_threshold: float = 0.0) -> bool:
         """
@@ -83,6 +86,8 @@ class FleetManager:
         self.clients: Dict[str, BatterySimulator] = {}
         self.unique_clients_ever_used = set()
         self.client_participation_count: Dict[str, int] = {}
+        self.client_recharged_battery: Dict[str, float] = {}
+        self.client_consumed_battery: Dict[str, float] = {}
     
     def add_client(self, client_id: str) -> BatterySimulator:
         """
@@ -166,14 +171,28 @@ class FleetManager:
             if client_id not in self.clients:
                 self.add_client(client_id)
             
+            # Inizializza il consumo di batteria a 0
+            self.client_consumed_battery[client_id] = 0.0
+            
             if client_id in selected_clients:
+                # Salva il livello di batteria prima del consumo
+                previous_level = self.clients[client_id].battery_level
+                
                 # Consume battery for selected clients
                 self.clients[client_id].consume_battery()
+                
+                # Calcola la quantità di batteria consumata
+                consumed = previous_level - self.clients[client_id].battery_level
+                self.client_consumed_battery[client_id] = consumed
+                
                 self.unique_clients_ever_used.add(client_id)
                 self.client_participation_count[client_id] = self.client_participation_count.get(client_id, 0) + 1
-            else:
-                # Recharge battery for idle clients
-                self.clients[client_id].recharge_battery()
+            
+            # Recharge battery for all clients
+            recharged = self.clients[client_id].recharge_battery()
+            #save the recharged value in this round for wandb logging in the table
+            self.client_recharged_battery[client_id] = recharged
+
     
     def get_fleet_stats(self, min_threshold: float = 0.0) -> Dict[str, float]:
         """
