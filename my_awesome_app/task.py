@@ -10,32 +10,40 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from flwr_datasets.partitioner import IidPartitioner
 from torchvision.transforms import Compose, Normalize, ToTensor
 from flwr_datasets import FederatedDataset
 
 class Net(nn.Module):
-    """
-    LeNet-style CNN model for image classification.
-    """
-    def __init__(self, num_classes: int = 10) -> None:
-        super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(1, 6, kernel_size=5)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
-        self.fc1 = nn.Linear(16 * 4 * 4, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, num_classes)
+    """Model (simple CNN adapted from 'PyTorch: A 60 Minute Blitz')"""
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
+
+    def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 4 * 4)
+        x = x.view(-1, 16 * 5 * 5)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
 
 # Global variable to store dataset
 fds = None
+
+# Create preprocessing transforms
+pytorch_transforms = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+def apply_transforms(batch):
+    """Apply transforms to the partition from FederatedDataset."""
+    batch["img"] = [pytorch_transforms(img) for img in batch["img"]]
+    return batch
 
 def load_data(partition_id: int, num_partitions: int) -> tuple:
     """
@@ -55,21 +63,14 @@ def load_data(partition_id: int, num_partitions: int) -> tuple:
     
     # Load dataset once and reuse for all clients
     if fds is None:
-        fds = FederatedDataset(dataset="fashion_mnist", partitioners={"train": num_partitions})
+        partitioner = IidPartitioner(num_partitions=num_partitions)
+        fds = FederatedDataset(dataset="uoft-cs/cifar10", partitioners={"train": partitioner})
     
     # Load client's specific partition
     partition = fds.load_partition(partition_id)
     
     # Split into train and test sets
-    partition_train_test = partition.train_test_split(test_size=0.2)
-    
-    # Create preprocessing transforms
-    pytorch_transforms = Compose([ToTensor(), Normalize((0.5,), (0.5,))])
-    
-    # Apply transforms to each image
-    def apply_transforms(batch):
-        batch["image"] = [pytorch_transforms(img) for img in batch["image"]]
-        return batch
+    partition_train_test = partition.train_test_split(test_size=0.2, seed=42)
     
     # Apply transforms to the dataset
     partition_train_test = partition_train_test.with_transform(apply_transforms)
@@ -105,7 +106,7 @@ def train(net, trainloader, epochs: int, device: torch.device):
         correct, total, epoch_loss = 0, 0, 0.0
 
         for batch in trainloader:
-            images, labels = batch["image"].to(device), batch["label"].to(device)
+            images, labels = batch["img"].to(device), batch["label"].to(device)
             optimizer.zero_grad()
             outputs = net(images)
             loss = criterion(outputs, labels)
@@ -143,7 +144,7 @@ def test(net, testloader, device: torch.device):
     with torch.no_grad():
         for batch in testloader:
 
-            images, labels = batch["image"].to(device), batch["label"].to(device)
+            images, labels = batch["img"].to(device), batch["label"].to(device)
             outputs = net(images)
             loss += criterion(outputs, labels).item()
             _, predicted = torch.max(outputs.data, 1)
@@ -189,4 +190,4 @@ def get_transforms():
     Returns:
         Compose: Composition of transforms for data preprocessing
     """
-    return Compose([ToTensor(), Normalize((0.5,), (0.5,))])
+    return Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
