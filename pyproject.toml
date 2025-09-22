@@ -34,7 +34,13 @@ num-supernodes = 10 #insert here the same value as in the federations section
 strategy = 1 #0 for base strategy, 1 for battery_aware strategy
 
 [tool.flwr.federations]
-default = "local-simulation"
+default = "small-simulation"
 
-[tool.flwr.federations.local-simulation]
+[tool.flwr.federations.small-simulation]
 options.num-supernodes = 10
+
+[tool.flwr.federations.medium-simulation]
+options.num-supernodes = 100
+
+[tool.flwr.federations.big-simulation]
+options.num-supernodes = 1000

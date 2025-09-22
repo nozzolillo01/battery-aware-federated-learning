@@ -244,11 +244,14 @@ class BatteryAwareFedAvg(FedAvg):
             cid = c.cid
             battery = self.fleet_manager.get_battery_level(cid)
             prev = self._prev_battery_levels.get(cid)
-            delta = None if prev is None else battery - prev
+            consumed = self.fleet_manager.client_consumed_battery.get(cid, 0)
+            recharged = self.fleet_manager.client_recharged_battery.get(cid, 0)
             prob = prob_map.get(cid, 0.0)
             present_data[cid] = {
-                "battery": round(battery, 4),
-                "delta_battery": (round(delta, 4) if delta is not None else np.nan),
+                "current_battery_level": round(battery, 4),
+                "previous_battery_level": (round(prev, 4) if prev is not None else np.nan),
+                "consumed_battery": round(consumed, 4),
+                "recharged_battery": round(recharged, 4),
                 "prob_selection": round(prob, 6),
                 "selected": int(cid in selected_client_ids),
                 "eligible": int(cid in eligible_ids),
@@ -268,7 +271,7 @@ class BatteryAwareFedAvg(FedAvg):
 
         # Create a table for the current round with fixed column order
         columns = [
-            "round", "client_id", "battery", "delta_battery", 
+            "round", "client_id", "current_battery_level", "previous_battery_level", "consumed_battery", "recharged_battery", 
             "prob_selection", "selected", "eligible", "rounds_since_selected",
         ]
         round_table = wandb.Table(columns=columns)
@@ -278,16 +281,18 @@ class BatteryAwareFedAvg(FedAvg):
                 row = [
                     server_round,
                     cid,
-                    present_data[cid]["battery"],
-                    present_data[cid]["delta_battery"],
+                    present_data[cid]["current_battery_level"],
+                    present_data[cid]["previous_battery_level"],
+                    present_data[cid]["consumed_battery"],
+                    present_data[cid]["recharged_battery"],
                     present_data[cid]["prob_selection"],
                     present_data[cid]["selected"],
                     present_data[cid]["eligible"],
                     self._rounds_since_selected.get(cid, np.nan),
                 ]
             else:
-                # Client not available this round: NaN for battery and delta, 0 for others
-                row = [server_round, cid, np.nan, np.nan, 0.0, 0, 0, self._rounds_since_selected.get(cid, np.nan)]
+                # Client not available this round: NaN for battery related values, 0 for others
+                row = [server_round, cid, np.nan, np.nan, np.nan, np.nan, 0.0, 0, 0, self._rounds_since_selected.get(cid, np.nan)]
             round_table.add_data(*row)
 
         # Log table with distinct key for each round
@@ -297,7 +302,7 @@ class BatteryAwareFedAvg(FedAvg):
             f"client_status_round_{server_round}": round_table
         }, step=server_round)
         
-        # Update previous battery levels for delta calculation in next round
+        # Update previous battery levels for comparison in next round
         for c in available_clients:
             self._prev_battery_levels[c.cid] = self.fleet_manager.get_battery_level(c.cid)
 
