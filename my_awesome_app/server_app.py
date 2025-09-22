@@ -5,7 +5,10 @@ Configures and runs the FL server with energy-aware client selection.
 
 import logging
 import os
-from typing import List, Tuple
+import sys
+import tomli
+import pathlib
+from typing import List, Tuple, Dict, Any, Optional
 from flwr.common import Context, ndarrays_to_parameters, Metrics
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from datasets import load_dataset
@@ -19,6 +22,42 @@ from my_awesome_app.base_strategy import BaseStrategy
 # Configure logging and environment
 logging.getLogger("flwr").setLevel(logging.CRITICAL)
 os.environ["WANDB_SILENT"] = "true"
+
+def get_num_supernodes_from_config() -> int:
+    # 1) Parse CLI args (Flower forwards this, e.g., `--num-supernodes 10`)
+    try:
+        for i, arg in enumerate(sys.argv):
+            if arg.startswith("--num-supernodes"):
+                value: Optional[str] = None
+                if "=" in arg:
+                    value = arg.split("=", 1)[1]
+                elif i + 1 < len(sys.argv):
+                    value = sys.argv[i + 1]
+                if value is not None:
+                    return int(value)
+    except Exception:
+        return 10
+
+    """    # 2) Read from pyproject.toml default federation
+    data = read_pyproject_toml()
+    try:
+        flwr_tool = data.get("tool", {}).get("flwr", {})
+        federations = flwr_tool.get("federations", {})
+        fed_name = federations.get("default")
+        if not fed_name:
+            return 10
+        fed_section = federations.get(fed_name, {})
+        if not isinstance(fed_section, dict):
+            return 10
+        # Typical TOML parsing: options.num-supernodes -> {"options": {"num-supernodes": X}}
+        options = fed_section.get("options", {})
+        num_supernodes = options.get("num-supernodes")
+        if num_supernodes is None:
+            # Fallback in case of flat dotted keys
+            num_supernodes = fed_section.get("options.num-supernodes")
+        return int(num_supernodes) if num_supernodes is not None else 10
+    except Exception:
+        return 10"""
 
 
 def get_evaluate_fn(testloader, device):
@@ -75,9 +114,9 @@ def server_fn(context: Context) -> ServerAppComponents:
     min_battery_threshold = context.run_config["min-battery-threshold"]
     local_epochs = context.run_config.get("local-epochs", None)
     strategy = context.run_config.get("strategy", 0)
-    
-    # Read additional configuration from file
-    num_supernodes = context.run_config.get("num-supernodes", 2)
+    num_supernodes = get_num_supernodes_from_config()
+
+
 
     # Initialize model parameters
     ndarrays = get_weights(Net())
