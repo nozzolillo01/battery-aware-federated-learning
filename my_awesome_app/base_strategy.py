@@ -81,7 +81,7 @@ class BaseStrategy(FedAvg):
         return available_clients, config
 
     def _eligible_clients(self, available_clients: List[ClientProxy]) -> List[ClientProxy]:
-        #return all the clients with battery level >= 0.0
+        #return all the clients with battery level >= min_battery_threshold
         eligible_ids = self.fleet_manager.get_eligible_clients(
             [c.cid for c in available_clients], self.min_battery_threshold)
         return [c for c in available_clients if c.cid in eligible_ids]
@@ -209,7 +209,6 @@ class BaseStrategy(FedAvg):
         selected_client_ids = [c.cid for c in selected_clients]
         available_client_ids = [c.cid for c in available_clients]
 
-        # Salva il conteggio dei client eleggibili in questo round prima di aggiornare le batterie
         self.current_eligible_count = len(eligible_ids)
         
         # Capture statistics about selected clients
@@ -265,7 +264,6 @@ class BaseStrategy(FedAvg):
             "battery_min": fleet_stats.get("min_battery", 0),
             "fairness_jain": fleet_stats.get("fairness_jain", 0.0),
             "total_energy_consumed": fleet_stats.get("total_energy_consumed", 0.0),
-            # Usa il valore salvato da configure_fit per i client eleggibili
             "eligible_clients": getattr(self, "current_eligible_count", fleet_stats.get("eligible_clients", 0)),
         }
         
