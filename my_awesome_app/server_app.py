@@ -5,14 +5,16 @@ Configures and runs the FL server with energy-aware client selection.
 
 import logging
 import os
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple
 from flwr.common import Context, ndarrays_to_parameters, Metrics
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from datasets import load_dataset
 from torch.utils.data import DataLoader
+from flwr.server.strategy import FedAvg
 
 from my_awesome_app.task import Net, get_weights, set_weights, test, get_transforms
-from my_awesome_app.my_strategy import BatteryAwareFedAvg
+from my_awesome_app.battery_strategy import BatteryAwareFedAvg
+from my_awesome_app.base_strategy import BaseStrategy
 
 # Configure logging and environment
 logging.getLogger("flwr").setLevel(logging.CRITICAL)
@@ -72,6 +74,7 @@ def server_fn(context: Context) -> ServerAppComponents:
     fraction_fit = context.run_config["fraction-fit"]
     min_battery_threshold = context.run_config["min-battery-threshold"]
     local_epochs = context.run_config.get("local-epochs", None)
+    strategy = context.run_config.get("strategy", 0)
     
     # Read additional configuration from file
     num_supernodes = context.run_config.get("num-supernodes", 2)
@@ -91,8 +94,23 @@ def server_fn(context: Context) -> ServerAppComponents:
     dataset  = test_dataset.with_transform(apply_transforms)
     testloader = DataLoader(dataset , batch_size=128)
 
-    # Create battery-aware strategy
-    strategy = BatteryAwareFedAvg(
+    if strategy == 1:
+        # Create battery-aware strategy
+        strategy = BatteryAwareFedAvg(
+            fraction_fit=fraction_fit,
+            fraction_evaluate=1.0,
+            min_available_clients=2,
+            initial_parameters=parameters,
+            evaluate_metrics_aggregation_fn=weighted_average,
+            evaluate_fn=get_evaluate_fn(testloader, device="cpu"),
+            min_battery_threshold=min_battery_threshold,
+            total_rounds=num_rounds,
+            local_epochs=local_epochs,
+            num_supernodes=num_supernodes,
+        )
+    else:
+        # Base strategy with FedAvg
+        strategy = BaseStrategy(
         fraction_fit=fraction_fit,
         fraction_evaluate=1.0,
         min_available_clients=2,
@@ -104,7 +122,7 @@ def server_fn(context: Context) -> ServerAppComponents:
         local_epochs=local_epochs,
         num_supernodes=num_supernodes,
     )
-    
+
     # Configure server
     config = ServerConfig(num_rounds=num_rounds)
 

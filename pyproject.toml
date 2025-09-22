@@ -31,6 +31,7 @@ fraction-fit = 1.0
 local-epochs = 3
 min-battery-threshold = 0.2
 num-supernodes = 10 #insert here the same value as in the federations section
+strategy = 1 #0 for base strategy, 1 for battery_aware strategy
 
 [tool.flwr.federations]
 default = "local-simulation"

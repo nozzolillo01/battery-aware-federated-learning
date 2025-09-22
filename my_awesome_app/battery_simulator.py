@@ -12,17 +12,17 @@ class BatterySimulator:
     """
     
     # Constants for sensor types
-    SENSOR_TYPES = ["standard", "high_eff", "low_eff"]
+    SENSOR_TYPES = ["std_eff", "high_eff", "low_eff"]
     HARVESTING_RANGES = {
-        "high_eff": (0.06, 0.12),
-        "low_eff": (0.01, 0.04),
-        "standard": (0.03, 0.08)
+        "high_eff": (0.10, 0.20),
+        "low_eff" : (0.02, 0.05),
+        "std_eff" : (0.05, 0.10)
     }
     
     def __init__(self, client_id: str, sensor_type: str = None):
         self.client_id = client_id
         self.battery_level = random.uniform(0.3, 1.0)
-        self.consumption_rate = random.uniform(0.15, 0.35)
+        self.consumption_rate = random.uniform(0.10, 0.20)
         self.total_consumption = 0.0
         self.training_rounds = 0
         
