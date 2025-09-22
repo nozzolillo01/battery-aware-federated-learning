@@ -81,15 +81,15 @@ def server_fn(context: Context) -> ServerAppComponents:
     parameters = ndarrays_to_parameters(ndarrays)
 
     # Load and prepare centralized test dataset
-    testset = load_dataset("fashion_mnist")["test"]
+    test_dataset = load_dataset("uoft-cs/cifar10", split="test")
     
     def apply_transforms(batch):
         transforms = get_transforms()
-        batch["image"] = [transforms(img) for img in batch["image"]]
+        batch["img"] = [transforms(img) for img in batch["img"]]
         return batch
     
-    testset_transformed = testset.with_transform(apply_transforms)
-    testloader = DataLoader(testset_transformed, batch_size=32)
+    dataset  = test_dataset.with_transform(apply_transforms)
+    testloader = DataLoader(dataset , batch_size=128)
 
     # Create battery-aware strategy
     strategy = BatteryAwareFedAvg(
