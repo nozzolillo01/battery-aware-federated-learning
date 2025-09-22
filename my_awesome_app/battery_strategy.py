@@ -18,10 +18,10 @@ from flwr.server.strategy import FedAvg
 
 import numpy as np
 import wandb
-import json
+
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from typing import Any, Dict, List, Tuple, Optional, cast
+from typing import Any, Dict, List, Tuple, Optional
 
 from .battery_simulator import FleetManager
 
@@ -35,6 +35,7 @@ class BatteryAwareFedAvg(FedAvg):
         self.local_epochs_config = kwargs.pop("local_epochs", None)
         self.num_supernodes = kwargs.pop("num_supernodes", None)
         self.min_battery_threshold = float(kwargs.pop("min_battery_threshold", 0.0))
+        self.strategy = kwargs.pop("strategy", "battery_aware")
 
         # Init parent with the remaining kwargs
         super().__init__(*args, **kwargs)
@@ -63,12 +64,13 @@ class BatteryAwareFedAvg(FedAvg):
         timestamp = datetime.now(tz).strftime("%Y-%m-%d_%H:%M:%S")
         wandb.init(
             project="FL", 
-            name=f"run-{timestamp}",
+            name=f"BATTERY-run-{timestamp}",
             config={
                 "min_battery_threshold": self.min_battery_threshold,
                 "total_rounds": self.total_rounds_config,
                 "local_epochs": self.local_epochs_config,
-                "num_supernodes": self.num_supernodes
+                "num_supernodes": self.num_supernodes,
+                "strategy": self.strategy
             }
         )
 
@@ -81,7 +83,8 @@ class BatteryAwareFedAvg(FedAvg):
             ("num-supernodes", self.num_supernodes),
             ("num-server-rounds", self.total_rounds_config),
             ("local-epochs", self.local_epochs_config),
-            ("min-battery-threshold", self.min_battery_threshold)
+            ("min-battery-threshold", self.min_battery_threshold),
+            ("strategy", self.strategy)
         ]
         
         for name, value in config_items:
