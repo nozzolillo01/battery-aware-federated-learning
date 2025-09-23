@@ -14,6 +14,7 @@ REPEATS=${REPEATS:-30}
 SLEEP_BETWEEN=${SLEEP_BETWEEN:-1}
 LOG_CSV=${LOG_CSV:-"sweep_runs.csv"}   # per disattivare logging CSV: export LOG_CSV=""
 DRY_RUN=${DRY_RUN:-0}                  # se 1, stampa soltanto i comandi senza eseguirli
+RESUME=${RESUME:-0}                    # se 1, salta le run già completate (letto da LOG_CSV)
 
 echo "Preparazione ambiente..."
 
@@ -61,6 +62,14 @@ for fed in "${federations[@]}"; do
         echo ""
 
         for rep in $(seq 1 "$REPEATS"); do
+          # Se RESUME attivo e la run risulta già completata nel CSV, la saltiamo
+          if [ "$RESUME" -eq 1 ] && [ -n "$LOG_CSV" ] && [ -f "$LOG_CSV" ]; then
+            if awk -F, -v f="${fed}" -v s="${strat}" -v r="${rounds}" -v e="${epochs}" -v rep="${rep}" '($2==f && $3==s && $4==r && $5==e && $6==rep && $7==0){found=1} END{exit (found?0:1)}' "$LOG_CSV"; then
+              echo "[RESUME] già completata: fed=${fed} strategy=${strat} rounds=${rounds} epochs=${epochs} rep=${rep} → skip"
+              continue
+            fi
+          fi
+
           echo "[${fed}] strategy=${strat} rounds=${rounds} epochs=${epochs} | Ripetizione ${rep}/${REPEATS}"
           echo "Comando: flwr run . ${fed} --run-config \"strategy=${strat} num-server-rounds=${rounds} local-epochs=${epochs}\""
           start_ts=$(date +%s)
