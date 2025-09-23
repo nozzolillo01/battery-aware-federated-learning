@@ -38,28 +38,6 @@ def get_num_supernodes_from_config() -> int:
     except Exception:
         return 10
 
-    """    # 2) Read from pyproject.toml default federation
-    data = read_pyproject_toml()
-    try:
-        flwr_tool = data.get("tool", {}).get("flwr", {})
-        federations = flwr_tool.get("federations", {})
-        fed_name = federations.get("default")
-        if not fed_name:
-            return 10
-        fed_section = federations.get(fed_name, {})
-        if not isinstance(fed_section, dict):
-            return 10
-        # Typical TOML parsing: options.num-supernodes -> {"options": {"num-supernodes": X}}
-        options = fed_section.get("options", {})
-        num_supernodes = options.get("num-supernodes")
-        if num_supernodes is None:
-            # Fallback in case of flat dotted keys
-            num_supernodes = fed_section.get("options.num-supernodes")
-        return int(num_supernodes) if num_supernodes is not None else 10
-    except Exception:
-        return 10"""
-
-
 def get_evaluate_fn(testloader, device):
     """
     Create an evaluation function for the global model.

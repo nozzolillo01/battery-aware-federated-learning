@@ -49,7 +49,7 @@ class BaseStrategy(FedAvg):
         tz = ZoneInfo("Europe/Rome")
         timestamp = datetime.now(tz).strftime("%Y-%m-%d_%H:%M:%S")
         wandb.init(
-            project="FL", 
+            project="Federated Learning", 
             name=f"BASE-run-{timestamp}",
                         config={
                 "min_battery_threshold": self.min_battery_threshold,
