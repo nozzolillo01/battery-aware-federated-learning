@@ -1,5 +1,5 @@
 """
-base strategy with FedAvg with logging 
+base strategy for client selection where in each round all clients available above a battery threshold are selected
 
 """
 

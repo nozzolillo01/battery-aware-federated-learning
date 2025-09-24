@@ -92,6 +92,7 @@ def server_fn(context: Context) -> ServerAppComponents:
     min_battery_threshold = context.run_config["min-battery-threshold"]
     local_epochs = context.run_config.get("local-epochs", None)
     strategy = context.run_config.get("strategy", 0)
+    alpha = context.run_config.get("alpha", 2.0)
     num_supernodes = get_num_supernodes_from_config()
 
 
@@ -124,6 +125,7 @@ def server_fn(context: Context) -> ServerAppComponents:
             total_rounds=num_rounds,
             local_epochs=local_epochs,
             num_supernodes=num_supernodes,
+            alpha=alpha,
         )
     else:
         # Base strategy with FedAvg

@@ -22,7 +22,7 @@ class BatterySimulator:
     def __init__(self, client_id: str, sensor_type: str = None):
         self.client_id = client_id
         self.battery_level = random.uniform(0.3, 1.0)
-        self.consumption_rate = random.uniform(0.10, 0.20)
+        self.consumption_rate = random.uniform(0.10, 0.50)
         self.total_consumption = 0.0
         self.training_rounds = 0
         
@@ -45,7 +45,6 @@ class BatterySimulator:
         effective_harvested = self.battery_level - previous_level
         return effective_harvested
 
-        
     def can_participate(self, min_threshold: float = 0.0) -> bool:
         """
         Check if device has enough battery to participate in training.
@@ -56,22 +55,42 @@ class BatterySimulator:
         Returns:
             bool: True if battery is sufficient, False otherwise.
         """
-        return self.battery_level >= min_threshold
+        return self.battery_level >= min_threshold 
+
+    def enough_battery_for_training(self) -> bool:
+        """
+        Check if device has enough battery to perform training.
+        
+        Returns:
+            bool: True if battery is sufficient for training, False otherwise.
+        """
+        return self.battery_level >= self.consumption_rate
     
-    def consume_battery(self) -> None:
+    def consume_battery(self) -> bool:
         """
         Simulate battery consumption during model training.
+        Decreases battery by consumption_rate if enough battery is available.
+        If not enough battery, drains battery to 0.
+
+        Returns:
+            bool: True if training was completed, False if battery drained.
+
         """
-        consumption = self.consumption_rate
-        self.battery_level = max(0.0, self.battery_level - consumption)
-        self.total_consumption += consumption
-        self.training_rounds += 1
-    
-    def get_energy_efficiency(self) -> float:
-        """Returns the average energy consumption per training round."""
-        if self.training_rounds == 0:
-            return 0.0
-        return self.total_consumption / self.training_rounds
+
+        if self.enough_battery_for_training():
+            consumption = self.consumption_rate
+            self.battery_level = max(0.0, self.battery_level - consumption)
+            self.total_consumption += consumption
+            self.training_rounds += 1
+            return True
+        else:
+            consumption = self.battery_level  
+            self.battery_level = 0.0
+            self.total_consumption += consumption
+            self.training_rounds += 1
+        return False
+
+
 
 
 class FleetManager:
@@ -116,7 +135,20 @@ class FleetManager:
         if client_id not in self.clients:
             self.add_client(client_id)
         return self.clients[client_id].battery_level
-    
+
+    def get_dead_clients(self, selected_clients: List[str]) -> List[str]:
+        """
+        Get a list of clients with not enough battery to complete training.
+        
+        Returns:
+            List[str]: List of client IDs with battery level 0.0.
+        """
+        dead_clients = []
+        for client_id in selected_clients:
+            if not self.clients[client_id].enough_battery_for_training():
+                dead_clients.append(client_id)
+        return dead_clients
+
     def get_eligible_clients(self, client_ids: List[str], min_threshold: float = 0.0) -> List[str]:
         """
         Return list of clients with battery above minimum threshold.
@@ -134,9 +166,11 @@ class FleetManager:
                 self.add_client(client_id)
             if self.clients[client_id].can_participate(min_threshold):
                 eligible.append(client_id)
+
+        
         return eligible
-    
-    def calculate_selection_weights(self, client_ids: List[str]) -> Dict[str, float]:
+
+    def calculate_selection_weights(self, client_ids: List[str], alpha: float = 2.0) -> Dict[str, float]:
         """
         Calculate client selection weights based on battery levels.
         Uses quadratic weighting to prioritize clients with higher battery.
@@ -153,10 +187,10 @@ class FleetManager:
                 self.add_client(client_id)
             
             battery_level = self.clients[client_id].battery_level
-            weights[client_id] = battery_level ** 2  # Quadratic weighting
+            weights[client_id] = battery_level ** alpha 
         
         return weights
-    
+
     def update_round(self, selected_clients: List[str], all_clients: List[str]) -> None:
         """
         Update battery levels after a training round.
@@ -166,6 +200,7 @@ class FleetManager:
             selected_clients: IDs of clients selected for training.
             all_clients: IDs of all available clients in this round.
         """
+        
         # Update each client's battery
         for client_id in all_clients:
             if client_id not in self.clients:
@@ -187,13 +222,13 @@ class FleetManager:
                 
                 self.unique_clients_ever_used.add(client_id)
                 self.client_participation_count[client_id] = self.client_participation_count.get(client_id, 0) + 1
+                
             
             # Recharge battery for all clients
             recharged = self.clients[client_id].recharge_battery()
             #save the recharged value in this round for wandb logging in the table
             self.client_recharged_battery[client_id] = recharged
-
-    
+  
     def get_fleet_stats(self, min_threshold: float = 0.0) -> Dict[str, float]:
         """
         Get comprehensive statistics about the fleet's battery status.
@@ -209,12 +244,9 @@ class FleetManager:
             return {
                 "avg_battery": 0, 
                 "min_battery": 0,
-                "max_battery": 0,
                 "eligible_clients": 0,
-                "total_clients": 0,
                 "fairness_jain": 0.0,
                 "total_energy_consumed": 0.0,
-                "avg_energy_efficiency": 0.0
             }
         
         # Calculate battery statistics
@@ -233,20 +265,13 @@ class FleetManager:
         
         # Calculate energy efficiency metrics
         total_energy = sum(client.total_consumption for client in self.clients.values())
-        active_clients = [client for client in self.clients.values() if client.training_rounds > 0]
-        
-        avg_efficiency = 0.0
-        if active_clients:
-            avg_efficiency = sum(client.get_energy_efficiency() for client in active_clients) / len(active_clients)
+
         
         # Return comprehensive statistics
         return {
             "avg_battery": sum(battery_levels) / len(battery_levels),
             "min_battery": min(battery_levels),
-            "max_battery": max(battery_levels),
             "eligible_clients": eligible,
-            "total_clients": total_clients,
             "fairness_jain": fairness_jain,
             "total_energy_consumed": total_energy,
-            "avg_energy_efficiency": avg_efficiency
         }
