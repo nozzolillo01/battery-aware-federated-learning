@@ -1,5 +1,7 @@
 """
-base strategy for client selection where in each round all clients available above a battery threshold are selected
+base strategy for client selection where in each round all clients available are randomly selected, ignoring battery levels.
+
+For each client if the required energy to perform the training is more than the current battery level, the client drops out and does not complete the training.
 
 """
 
@@ -8,6 +10,7 @@ from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import FedAvg
 
 import numpy as np
+import random
 import wandb
 
 from datetime import datetime
@@ -24,7 +27,6 @@ class BaseStrategy(FedAvg):
         self.total_rounds_config = kwargs.pop("total_rounds", None)
         self.local_epochs_config = kwargs.pop("local_epochs", None)
         self.num_supernodes = kwargs.pop("num_supernodes", None)
-        self.min_battery_threshold = float(kwargs.pop("min_battery_threshold", 0.0))
         self.strategy = kwargs.pop("strategy", "base")
 
         # Init parent with the remaining kwargs
@@ -35,6 +37,7 @@ class BaseStrategy(FedAvg):
         self.last_selected_count = 0
         self.last_selected_battery_avg = None
         self.last_selected_battery_min = None
+        self.last_deaths_count = 0
 
         # Tracking state for detailed wandb visualization
         self._prev_battery_levels: Dict[str, float] = {}
@@ -49,14 +52,13 @@ class BaseStrategy(FedAvg):
         tz = ZoneInfo("Europe/Rome")
         timestamp = datetime.now(tz).strftime("%Y-%m-%d_%H:%M:%S")
         wandb.init(
-            project="Federated Learning", 
+            project="nuovo", 
             name=f"BASE-run-{timestamp}",
                         config={
-                "min_battery_threshold": self.min_battery_threshold,
                 "total_rounds": self.total_rounds_config,
                 "local_epochs": self.local_epochs_config,
                 "num_supernodes": self.num_supernodes,
-                "strategy": self.strategy
+                "strategy": self.strategy,
             }
         )
 
@@ -65,7 +67,6 @@ class BaseStrategy(FedAvg):
             ("num-supernodes", self.num_supernodes),
             ("num-server-rounds", self.total_rounds_config),
             ("local-epochs", self.local_epochs_config),
-            ("min-battery-threshold", self.min_battery_threshold),
             ("strategy", self.strategy)
         ]
         
@@ -81,15 +82,18 @@ class BaseStrategy(FedAvg):
         return available_clients, config
 
     def _eligible_clients(self, available_clients: List[ClientProxy]) -> List[ClientProxy]:
-        #return all the clients with battery level >= min_battery_threshold
+        #return all the clients with battery level >= 0.0
         eligible_ids = self.fleet_manager.get_eligible_clients(
-            [c.cid for c in available_clients], self.min_battery_threshold)
+            [c.cid for c in available_clients], 0.0)
         return [c for c in available_clients if c.cid in eligible_ids]
 
-    def _probabilistic_selection(self, eligible_clients: List[ClientProxy],available_clients: List[ClientProxy]) -> Tuple[List[ClientProxy], Dict[str, float]]:
+    def _probabilistic_selection(self, eligible_clients: List[ClientProxy], available_clients: List[ClientProxy]) -> Tuple[List[ClientProxy], Dict[str, float]]:
         # Create probability map with 1.0 for all clients eligible and 0 otherwise
 
-        selected_clients = eligible_clients
+        #select a random fraction of eligible clients
+        selected_clients = random.sample(eligible_clients, k=len(eligible_clients)//2)
+
+
 
         prob_map: Dict[str, float] = {}
         for c in available_clients:
@@ -119,7 +123,8 @@ class BaseStrategy(FedAvg):
         available_clients: List[ClientProxy], 
         selected_client_ids: List[str], 
         eligible_ids: List[str], 
-        prob_map: Dict[str, float]
+        prob_map: Dict[str, float],
+        deaths_ids: List[str]
     ) -> None:
         
         # Update stable client ordering (add new clients while maintaining sort)
@@ -160,14 +165,16 @@ class BaseStrategy(FedAvg):
                     self._rounds_since_selected[cid] = 1 if cid not in selected_client_ids else 0
 
         # Create a table for the current round with fixed column order
+        # Add column to mark clients that died during THIS round
         columns = [
             "round", "client_id", "current_battery_level", "previous_battery_level", "consumed_battery", "recharged_battery", 
-            "prob_selection", "selected", "eligible", "rounds_since_selected",
+            "prob_selection", "selected", "eligible", "is_dead_during_the_round", "rounds_since_selected",
         ]
         round_table = wandb.Table(columns=columns)
         
         for cid in self._client_id_order:
             if cid in present_data:
+                is_dead = int(cid in deaths_ids)
                 row = [
                     server_round,
                     cid,
@@ -178,17 +185,19 @@ class BaseStrategy(FedAvg):
                     present_data[cid]["prob_selection"],
                     present_data[cid]["selected"],
                     present_data[cid]["eligible"],
+                    is_dead,
                     self._rounds_since_selected.get(cid, np.nan),
                 ]
             else:
                 # Client not available this round: NaN for battery related values, 0 for others
-                row = [server_round, cid, np.nan, np.nan, np.nan, np.nan, 0.0, 0, 0, self._rounds_since_selected.get(cid, np.nan)]
+                row = [server_round, cid, np.nan, np.nan, np.nan, np.nan, 0.0, 0, 0, 0, self._rounds_since_selected.get(cid, np.nan)]
             round_table.add_data(*row)
 
         # Log table with distinct key for each round
         wandb.log({
             "round": server_round,
             "selected_clients": self.last_selected_count,
+            "deaths_clients": self.last_deaths_count,
             f"client_status_round_{server_round}": round_table
         }, step=server_round)
         
@@ -209,27 +218,41 @@ class BaseStrategy(FedAvg):
         eligible_clients = self._eligible_clients(available_clients)
         eligible_ids = [c.cid for c in eligible_clients]
         
-        # Select all clients
+        # Select all eligible clients
         selected_clients, prob_map = self._probabilistic_selection(eligible_clients, available_clients)
         selected_client_ids = [c.cid for c in selected_clients]
         available_client_ids = [c.cid for c in available_clients]
 
         self.current_eligible_count = len(eligible_ids)
-        
-        # Capture statistics about selected clients
+
+        # Compute death clients (selected that cannot complete training)
+        deaths = self.fleet_manager.get_dead_clients(selected_client_ids)
+        self.last_deaths_count = len(deaths)
+
+        # Capture statistics about selected clients (including deaths)
         self._capture_selected_stats(selected_client_ids)
-        
-        # Log detailed information to Weights & Biases
-        self._log_selection_to_wandb(server_round, available_clients, selected_client_ids, eligible_ids, prob_map)
-        
-        # Update fleet battery levels
+
+        # Update fleet battery levels for this round
         self.fleet_manager.update_round(selected_client_ids, available_client_ids)
-        
+
+        # Log detailed information to Weights & Biases (mark deaths in current round table)
+        self._log_selection_to_wandb(
+            server_round,
+            available_clients,
+            selected_client_ids,
+            eligible_ids,
+            prob_map,
+            list(deaths),
+        )
+
+        # Exclude death clients from actual fit (they don't exchange weights)
+        selected_clients = [c for c in selected_clients if c.cid not in deaths]
+
         return [(client, config) for client in selected_clients]
 
     def _extract_battery_metrics(self) -> Dict[str, float]:
 
-        fleet_stats = self.fleet_manager.get_fleet_stats(self.min_battery_threshold)
+        fleet_stats = self.fleet_manager.get_fleet_stats(0.0)
         return {
             "fleet_avg_battery": fleet_stats.get("avg_battery", 0),
             "fleet_min_battery": fleet_stats.get("min_battery", 0),
@@ -263,7 +286,7 @@ class BaseStrategy(FedAvg):
 
     def _prepare_evaluation_metrics(self, server_round: int, loss: float, metrics: Dict[str, Any]) -> Dict[str, Any]:
 
-        fleet_stats = self.fleet_manager.get_fleet_stats(self.min_battery_threshold)
+        fleet_stats = self.fleet_manager.get_fleet_stats(0.0)
         battery_metrics = {
             "battery_avg": fleet_stats.get("avg_battery", 0),
             "battery_min": fleet_stats.get("min_battery", 0),
@@ -291,6 +314,7 @@ class BaseStrategy(FedAvg):
             "selected_clients": self.last_selected_count,
             "selected_battery_avg": round(self.last_selected_battery_avg, 3) if self.last_selected_battery_avg is not None else None,
             "selected_battery_min": round(self.last_selected_battery_min, 3) if self.last_selected_battery_min is not None else None,
+            "deaths_clients": self.last_deaths_count,
         }
      
     def _log_results_to_wandb(self, server_round: int, analysis_results: Dict[str, Any]) -> None:
@@ -305,14 +329,17 @@ class BaseStrategy(FedAvg):
         
     def _print_evaluation_summary(self, server_round: int, loss: float, metrics: Dict[str, Any]) -> None:
         try:
-            acc = metrics.get("cen_accuracy", 0)
+            acc = metrics.get("accuracy", metrics.get("cen_accuracy", 0))
             eligible = metrics.get("eligible_clients", 0)
-            suffix = f"/{self.num_supernodes}" if self.num_supernodes is not None else ""
-            
+            total = self.num_supernodes if self.num_supernodes is not None else "?"
+            selected = metrics.get("selected_clients", self.last_selected_count)
+            deaths = metrics.get("deaths_clients", 0)
+
             print(
                 f"[Round {server_round}] loss={loss:.4f} acc={acc:.4f} "
                 f"eligible_clients={eligible} "
-                f"selected_clients={self.last_selected_count}{suffix}"
+                f"selected_clients={selected}/{total} "
+                f"deaths={deaths}/{selected}"
             )
         except Exception:
             pass
@@ -334,7 +361,7 @@ class BaseStrategy(FedAvg):
         # Log to Weights & Biases
         self._log_results_to_wandb(server_round, analysis_results)
         
-        # Print summary to terminal
-        self._print_evaluation_summary(server_round, loss, metrics)
+        # Print summary to terminal using enriched metrics
+        self._print_evaluation_summary(server_round, loss, analysis_results)
 
         return loss, metrics

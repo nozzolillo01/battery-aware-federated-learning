@@ -136,7 +136,6 @@ def server_fn(context: Context) -> ServerAppComponents:
         initial_parameters=parameters,
         evaluate_metrics_aggregation_fn=weighted_average,
         evaluate_fn=get_evaluate_fn(testloader, device="cpu"),
-        min_battery_threshold=min_battery_threshold,
         total_rounds=num_rounds,
         local_epochs=local_epochs,
         num_supernodes=num_supernodes,
