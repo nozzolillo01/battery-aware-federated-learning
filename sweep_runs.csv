@@ -529,3 +529,13 @@ timestamp,federation,strategy,num_server_rounds,local_epochs,repeat,exit_code,du
 2025-09-24T13:14:07+00:00,small-simulation,1,50,5,18,0,616
 2025-09-24T13:25:07+00:00,small-simulation,1,50,5,19,0,659
 2025-09-24T13:35:34+00:00,small-simulation,1,50,5,20,0,626
+2025-09-24T16:24:16+00:00,small-simulation,1,50,5,21,0,689
+2025-09-24T16:34:44+00:00,small-simulation,1,50,5,22,0,627
+2025-09-24T16:44:58+00:00,small-simulation,1,50,5,23,0,613
+2025-09-24T16:54:52+00:00,small-simulation,1,50,5,24,0,593
+2025-09-24T17:04:25+00:00,small-simulation,1,50,5,25,0,572
+2025-09-24T17:14:17+00:00,small-simulation,1,50,5,26,0,591
+2025-09-24T17:24:14+00:00,small-simulation,1,50,5,27,0,596
+2025-09-24T17:33:32+00:00,small-simulation,1,50,5,28,0,557
+2025-09-24T17:44:24+00:00,small-simulation,1,50,5,29,0,651
+2025-09-24T17:53:46+00:00,small-simulation,1,50,5,30,0,561
