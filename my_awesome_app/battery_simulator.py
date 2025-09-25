@@ -138,10 +138,21 @@ class FleetManager:
 
     def get_dead_clients(self, selected_clients: List[str]) -> List[str]:
         """
-        Get a list of clients with not enough battery to complete training.
-        
+        Get a list of selected clients that don't have enough battery to
+        successfully complete the local training step in this round.
+
+        Note:
+            A client can be considered "dead" even if its current battery is > 0,
+            as long as it is strictly less than the required consumption_rate
+            for completing the training step. In that case, during consumption
+            the battery will be drained to 0.0 and the client will not finish
+            training (and must not exchange weights with the server).
+
+        Args:
+            selected_clients: Client IDs selected to attempt training this round.
+
         Returns:
-            List[str]: List of client IDs with battery level 0.0.
+            List[str]: IDs of clients without sufficient energy to complete training.
         """
         dead_clients = []
         for client_id in selected_clients:

@@ -93,8 +93,6 @@ class BaseStrategy(FedAvg):
         #select a random fraction of eligible clients
         selected_clients = random.sample(eligible_clients, k=len(eligible_clients)//2)
 
-
-
         prob_map: Dict[str, float] = {}
         for c in available_clients:
             prob_map[c.cid] = 1.0 if c in selected_clients else 0.0
