@@ -21,8 +21,8 @@ class BatterySimulator:
     
     def __init__(self, client_id: str, sensor_type: str = None):
         self.client_id = client_id
-        self.battery_level = random.uniform(0.3, 1.0)
-        self.consumption_rate = random.uniform(0.10, 0.20)
+        self.battery_level = random.uniform(0.1, 1.0)
+        self.consumption_rate = random.uniform(0.02, 0.05) # consumption rate per a single local epoch
         self.total_consumption = 0.0
         self.training_rounds = 0
         
@@ -57,19 +57,36 @@ class BatterySimulator:
         """
         return self.battery_level >= min_threshold 
 
-    def enough_battery_for_training(self) -> bool:
+    def _effective_consumption(self, local_epochs) -> float:
+        """
+        Compute effective energy consumption for the current round as
+        per-epoch consumption multiplied by the number of local epochs.
+
+        Args:
+            local_epochs: Number of local training epochs planned for this round.
+
+        Returns:
+            float: Effective battery fraction to be consumed.
+        """
+        epochs = max(1, int(local_epochs))
+        return self.consumption_rate * epochs
+
+    def enough_battery_for_training(self, local_epochs) -> bool:
         """
         Check if device has enough battery to perform training.
+        
+        Args:
+            local_epochs: Number of local training epochs planned for this round.
         
         Returns:
             bool: True if battery is sufficient for training, False otherwise.
         """
-        return self.battery_level >= self.consumption_rate
-    
-    def consume_battery(self) -> bool:
+        return self.battery_level >= self._effective_consumption(local_epochs)
+
+    def consume_battery(self, local_epochs) -> bool:
         """
         Simulate battery consumption during model training.
-        Decreases battery by consumption_rate if enough battery is available.
+        Decreases battery by (consumption_rate * local_epochs) if enough battery is available.
         If not enough battery, drains battery to 0.
 
         Returns:
@@ -77,8 +94,9 @@ class BatterySimulator:
 
         """
 
-        if self.enough_battery_for_training():
-            consumption = self.consumption_rate
+        effective_needed = self._effective_consumption(local_epochs)
+        if self.enough_battery_for_training(local_epochs):
+            consumption = effective_needed
             self.battery_level = max(0.0, self.battery_level - consumption)
             self.total_consumption += consumption
             self.training_rounds += 1
@@ -136,7 +154,7 @@ class FleetManager:
             self.add_client(client_id)
         return self.clients[client_id].battery_level
 
-    def get_dead_clients(self, selected_clients: List[str]) -> List[str]:
+    def get_dead_clients(self, selected_clients: List[str], local_epochs) -> List[str]:
         """
         Get a list of selected clients that don't have enough battery to
         successfully complete the local training step in this round.
@@ -150,13 +168,14 @@ class FleetManager:
 
         Args:
             selected_clients: Client IDs selected to attempt training this round.
+            local_epochs: Number of local training epochs planned for this round.
 
         Returns:
             List[str]: IDs of clients without sufficient energy to complete training.
         """
         dead_clients = []
         for client_id in selected_clients:
-            if not self.clients[client_id].enough_battery_for_training():
+            if not self.clients[client_id].enough_battery_for_training(local_epochs):
                 dead_clients.append(client_id)
         return dead_clients
 
@@ -202,7 +221,7 @@ class FleetManager:
         
         return weights
 
-    def update_round(self, selected_clients: List[str], all_clients: List[str]) -> None:
+    def update_round(self, selected_clients: List[str], all_clients: List[str], local_epochs) -> None:
         """
         Update battery levels after a training round.
         Selected clients consume battery, while idle clients recharge.
@@ -210,6 +229,7 @@ class FleetManager:
         Args:
             selected_clients: IDs of clients selected for training.
             all_clients: IDs of all available clients in this round.
+            local_epochs: Number of local training epochs executed per selected client in this round.
         """
         
         # Update each client's battery
@@ -225,7 +245,7 @@ class FleetManager:
                 previous_level = self.clients[client_id].battery_level
                 
                 # Consume battery for selected clients
-                self.clients[client_id].consume_battery()
+                self.clients[client_id].consume_battery(local_epochs)
                 
                 # Calcola la quantità di batteria consumata
                 consumed = previous_level - self.clients[client_id].battery_level

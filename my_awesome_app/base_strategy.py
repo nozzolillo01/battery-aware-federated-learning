@@ -224,14 +224,15 @@ class BaseStrategy(FedAvg):
         self.current_eligible_count = len(eligible_ids)
 
         # Compute death clients (selected that cannot complete training)
-        deaths = self.fleet_manager.get_dead_clients(selected_client_ids)
+        epochs = int(self.local_epochs_config)
+        deaths = self.fleet_manager.get_dead_clients(selected_client_ids, epochs)
         self.last_deaths_count = len(deaths)
 
         # Capture statistics about selected clients (including deaths)
         self._capture_selected_stats(selected_client_ids)
 
         # Update fleet battery levels for this round
-        self.fleet_manager.update_round(selected_client_ids, available_client_ids)
+        self.fleet_manager.update_round(selected_client_ids, available_client_ids, epochs)
 
         # Log detailed information to Weights & Biases (mark deaths in current round table)
         self._log_selection_to_wandb(
