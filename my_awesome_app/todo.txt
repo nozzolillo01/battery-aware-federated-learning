@@ -1,32 +1,5 @@
 1- in battery_simulator.py, migliorare realismo del consumo energetico
 
-    Consumo legato ai local epochs
-
-    Ora il consumo è costante per round (consumption_rate).
-
-    Il consumo dovrebbe scalare con il numero di local epochs (più addestramento → più energia consumata).
-
-    Esempio:
-
-    def consume_battery(self, local_epochs: int = 1) -> None:
-        consumption = self.consumption_rate * local_epochs
-        self.battery_level = max(0.0, self.battery_level - consumption)
-        self.total_consumption += consumption
-        self.training_rounds += 1
-
-
-    Consumo di comunicazione
-
-    Il consumo non dipende solo dal training, ma anche dalla trasmissione al server (uplink/downlink).
-
-    Potresti introdurre un termine fisso o proporzionale alla dimensione del modello.
-
-    Esempio:
-
-    comm_cost = 0.02  # normalizzato
-    consumption = self.consumption_rate * local_epochs + comm_cost
-
-
     Heterogeneity più forte nei consumi
 
     Oltre ai sensori, puoi far sì che i dispositivi abbiano diversi consumption_rate in base a classe/architettura hardware.
@@ -38,6 +11,8 @@
                     "low_power_mcu": (0.02, 0.05)}
 
 2- aggiornare il README
+
+
 
 
 
