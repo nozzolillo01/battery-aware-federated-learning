@@ -39,6 +39,5 @@
 
 2- aggiornare il README
 
-3- check if the total energy is corrected and if the training uses only the alive clients
 
 

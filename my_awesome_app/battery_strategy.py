@@ -349,14 +349,18 @@ class BatteryAwareFedAvg(FedAvg):
         selected_client_ids = [c.cid for c in selected_clients]
         available_client_ids = [c.cid for c in available_clients]
 
-    # Calcola i death (client selezionati che non completeranno l'addestramento)
-        deaths = self.fleet_manager.get_dead_clients(selected_client_ids)
+        # Calcola i death (client selezionati che non completeranno l'addestramento)
+        # Usa i local_epochs dalla config se presente, altrimenti default 1
+        epochs = int(self.local_epochs_config)
+        deaths = self.fleet_manager.get_dead_clients(selected_client_ids, epochs)
         self.last_deaths_count = len(deaths)
         
         # Cattura statistiche dei selezionati (includendo i death)
         self._capture_selected_stats(selected_client_ids)
 
-        self.fleet_manager.update_round(selected_client_ids, available_client_ids)
+        # Aggiorna i livelli di batteria della fleet per questo round
+        self.fleet_manager.update_round(selected_client_ids, available_client_ids, epochs)
+
         # Log dettagli a W&B (marcando i death nel round corrente)
         self._log_selection_to_wandb(
             server_round,
