@@ -22,7 +22,7 @@ class BatterySimulator:
     def __init__(self, client_id: str, sensor_type: str = None):
         self.client_id = client_id
         self.battery_level = random.uniform(0.1, 1.0)
-        self.consumption_rate = random.uniform(0.02, 0.05) # consumption rate per a single local epoch
+        self.consumption_rate = random.uniform(0.02, 0.05) # for a single local epoch
         self.total_consumption = 0.0
         self.training_rounds = 0
         
