@@ -1,6 +1,6 @@
 """
-Task module for federated learning with Fashion-MNIST.
-Implements a LeNet-style CNN model and data loading utilities.
+Task module for federated learning.
+Implements a CNN model and data loading utilities.
 """
 
 #import warnings
@@ -64,7 +64,7 @@ def load_data(partition_id: int, num_partitions: int) -> tuple:
     # Load dataset once and reuse for all clients
     if fds is None:
         #partitioner = IidPartitioner(num_partitions=num_partitions)
-        partitioner = DirichletPartitioner(num_partitions=num_partitions, alpha=0.3, partition_by="label")
+        partitioner = DirichletPartitioner(num_partitions=num_partitions, alpha=0.5, partition_by="label")
         fds = FederatedDataset(dataset="uoft-cs/cifar10", partitioners={"train": partitioner})
     
     # Load client's specific partition
@@ -72,7 +72,7 @@ def load_data(partition_id: int, num_partitions: int) -> tuple:
     
     # Split into train and test sets
     partition_train_test = partition.train_test_split(test_size=0.2, seed=42)
-    
+
     # Apply transforms to the dataset
     partition_train_test = partition_train_test.with_transform(apply_transforms)
     
@@ -186,7 +186,7 @@ def set_weights(net, parameters):
 
 def get_transforms():
     """
-    Return the transforms used for Fashion-MNIST dataset.
+    Return the transforms used for the dataset.
     
     Returns:
         Compose: Composition of transforms for data preprocessing

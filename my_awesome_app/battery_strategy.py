@@ -56,6 +56,9 @@ class BatteryAwareFedAvg(FedAvg):
         # Initialize Weights & Biases run and print header
         self._init_wandb_run()
         self._print_run_header()
+        # Series for W&B overlay charts
+        self._acc_series = {"train": [], "val": [], "test": []}
+        self._loss_series = {"train": [], "val": [], "test": []}
 
     def _init_wandb_run(self) -> None:
         """
@@ -76,6 +79,12 @@ class BatteryAwareFedAvg(FedAvg):
                 "alpha": self.alpha
             }
         )
+        # Define round as the global step for all following metrics
+        try:
+            wandb.define_metric("round")
+            wandb.define_metric("*", step="round")
+        except Exception:
+            pass
 
     def _print_run_header(self) -> None:
         """
@@ -422,6 +431,13 @@ class BatteryAwareFedAvg(FedAvg):
         # Update with battery metrics
         metrics_aggregated.update(battery_metrics)
 
+        # Persist last aggregated training metrics for overfitting analysis
+        try:
+            self.last_train_accuracy = metrics_aggregated.get("train_accuracy")
+            self.last_train_loss = metrics_aggregated.get("train_loss")
+        except Exception:
+            pass
+
         return parameters_aggregated, metrics_aggregated
 
     def _prepare_evaluation_metrics(self, server_round: int, loss: float, metrics: Dict[str, Any]) -> Dict[str, Any]:
@@ -450,11 +466,14 @@ class BatteryAwareFedAvg(FedAvg):
             metrics = {}
         metrics.update(battery_metrics)
         
+        # Choose accuracy key (client-side 'accuracy' or server 'test_accuracy_server')
+        is_server_eval = "test_accuracy_server" in metrics
+        acc = float(metrics.get("test_accuracy_server", metrics.get("accuracy", 0)))
+
         # Create complete results dictionary with proper rounding
-        return {
+        results = {
             "round": server_round,
-            "loss": round(loss, 4),
-            "accuracy": round(metrics.get("cen_accuracy", 0), 4),
+            # Avoid logging a generic 'loss' key; we use explicit names below
             "battery_avg": round(battery_metrics["battery_avg"], 3),
             "battery_min": round(battery_metrics["battery_min"], 3),
             "fairness_jain": round(battery_metrics["fairness_jain"], 3),
@@ -465,6 +484,25 @@ class BatteryAwareFedAvg(FedAvg):
             "selected_battery_min": round(self.last_selected_battery_min, 3) if self.last_selected_battery_min is not None else None,
             "deaths_clients": self.last_deaths_count,
         }
+
+        # Add explicit naming requested
+        if is_server_eval:
+            results["test_accuracy_server"] = round(acc, 4)
+            results["test_loss_server"] = round(loss, 4)
+        else:
+            results["val_accuracy_client"] = round(acc, 4)
+            results["val_loss_client"] = round(loss, 4)
+
+        # Attach last aggregated training metrics (no gap as per request)
+        try:
+            if getattr(self, "last_train_accuracy", None) is not None:
+                results["train_accuracy_client"] = float(self.last_train_accuracy)
+            if getattr(self, "last_train_loss", None) is not None:
+                results["train_loss_client"] = float(self.last_train_loss)
+        except Exception:
+            pass
+
+        return results
      
     def _log_results_to_wandb(self, server_round: int, analysis_results: Dict[str, Any]) -> None:
         """
@@ -481,6 +519,41 @@ class BatteryAwareFedAvg(FedAvg):
         }
         
         wandb.log(wandb_payload, step=server_round)
+
+        # Update and log overlay charts for Accuracy and Loss per round
+        try:
+            def _append(lst, value):
+                lst.append(float(value) if value is not None else None)
+
+            _append(self._acc_series["train"], analysis_results.get("train_accuracy_client"))
+            _append(self._acc_series["val"], analysis_results.get("val_accuracy_client"))
+            _append(self._acc_series["test"], analysis_results.get("test_accuracy_server"))
+
+            _append(self._loss_series["train"], analysis_results.get("train_loss_client"))
+            _append(self._loss_series["val"], analysis_results.get("val_loss_client"))
+            _append(self._loss_series["test"], analysis_results.get("test_loss_server"))
+
+            xs = list(range(1, len(self._acc_series["train"]) + 1))
+            acc_plot = wandb.plot.line_series(
+                xs=xs,
+                ys=[self._acc_series["train"], self._acc_series["val"], self._acc_series["test"]],
+                keys=["train_accuracy_client", "val_accuracy_client", "test_accuracy_server"],
+                title="Accuracy per round",
+                xname="round",
+            )
+            loss_plot = wandb.plot.line_series(
+                xs=xs,
+                ys=[self._loss_series["train"], self._loss_series["val"], self._loss_series["test"]],
+                keys=["train_loss_client", "val_loss_client", "test_loss_server"],
+                title="Loss per round",
+                xname="round",
+            )
+            wandb.log({
+                "chart/accuracy_per_round": acc_plot,
+                "chart/loss_per_round": loss_plot,
+            }, step=server_round)
+        except Exception:
+            pass
         
     def _print_evaluation_summary(self, server_round: int, loss: float, metrics: Dict[str, Any]) -> None:
         """
@@ -492,15 +565,22 @@ class BatteryAwareFedAvg(FedAvg):
             metrics: Evaluation metrics
         """
         try:
-            # Prefer enriched key 'accuracy'; fallback to raw 'cen_accuracy'
-            acc = metrics.get("accuracy", metrics.get("cen_accuracy", 0))
+            # Show both accuracy and loss with requested names; NA if missing
+            val_acc = metrics.get("val_accuracy_client")
+            val_loss = metrics.get("val_loss_client")
+            test_acc = metrics.get("test_accuracy_server")
+            test_loss = metrics.get("test_loss_server")
+            test_acc_label = f"test_accuracy_server={test_acc:.4f}" if test_acc is not None else "test_accuracy_server=NA"
+            test_loss_label = f"test_loss_server={test_loss:.4f}" if test_loss is not None else "test_loss_server=NA"
+            val_acc_label = f"val_accuracy_client={val_acc:.4f}" if val_acc is not None else "val_accuracy_client=NA"
+            val_loss_label = f"val_loss_client={val_loss:.4f}" if val_loss is not None else "val_loss_client=NA"
             eligible = metrics.get("eligible_clients", 0)
             total = self.num_supernodes if self.num_supernodes is not None else "?"
             selected = metrics.get("selected_clients", self.last_selected_count)
             deaths = metrics.get("deaths_clients", self.last_deaths_count)
 
             print(
-                f"[Round {server_round}] loss={loss:.4f} acc={acc:.4f} "
+                f"[Round {server_round}] {test_acc_label} {test_loss_label} {val_acc_label} {val_loss_label} "
                 f"eligible_clients={eligible} "
                 f"selected_clients={selected}/{total} "
                 f"deaths={deaths}/{selected}"
@@ -528,13 +608,46 @@ class BatteryAwareFedAvg(FedAvg):
 
         loss, metrics = result
         
-        # Prepare comprehensive evaluation metrics
+        # Do not log/print here to avoid duplicate lines.
+        # Store last server-side eval to combine with client-side eval later in aggregate_evaluate.
+        self._last_server_eval = {"loss": loss, **metrics}
+        return loss, metrics
+
+    # When using client-side evaluation, override aggregate_evaluate to log/print
+    def aggregate_evaluate(
+        self,
+        server_round: int,
+        results: List[Tuple[ClientProxy, FitRes]],
+        failures: List[Tuple[ClientProxy, FitRes]],
+    ) -> Tuple[Optional[float], Dict[str, Any]]:
+        try:
+            agg = super().aggregate_evaluate(server_round, results, failures)
+        except Exception:
+            agg = (None, {})
+
+        loss, metrics = agg
+        if loss is None or metrics is None:
+            return agg
+
+        # Prepare enhanced metrics (includes battery stats and gen gap)
         analysis_results = self._prepare_evaluation_metrics(server_round, loss, metrics)
-        
-        # Log to Weights & Biases
+
+        # If we have server-side eval stored, append it so we can print one line
+        try:
+            if hasattr(self, "_last_server_eval") and isinstance(self._last_server_eval, dict):
+                if "test_accuracy_server" in self._last_server_eval:
+                    analysis_results["test_accuracy_server"] = round(float(self._last_server_eval["test_accuracy_server"]), 4)
+                if "loss" in self._last_server_eval:
+                    analysis_results["test_loss_server"] = round(float(self._last_server_eval["loss"]), 4)
+        except Exception:
+            pass
+        finally:
+            # Reset for next round
+            if hasattr(self, "_last_server_eval"):
+                delattr(self, "_last_server_eval")
+
+        # Log and print summary
         self._log_results_to_wandb(server_round, analysis_results)
-        
-        # Print summary to terminal using enriched metrics (includes deaths)
         self._print_evaluation_summary(server_round, loss, analysis_results)
 
         return loss, metrics

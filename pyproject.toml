@@ -42,5 +42,5 @@ options.num-supernodes = 10
 [tool.flwr.federations.medium-simulation]
 options.num-supernodes = 50
 
-[tool.flwr.federations.big-simulation]
+[tool.flwr.federations.large-simulation]
 options.num-supernodes = 100
