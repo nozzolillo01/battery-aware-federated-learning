@@ -181,7 +181,7 @@ class BatteryAwareFedAvg(FedAvg):
         probs = weights / weights.sum()
         
         # Select at least 1, at most half of eligible clients, but minimum 2 if possible
-        num_to_select = max(1, min(len(eligible_clients), len(eligible_clients) // 2))
+        num_to_select = max(1, min(len(eligible_clients), len(eligible_clients) // 10))
         if num_to_select < 2 and len(eligible_clients) >= 2:
             num_to_select = 2
             
@@ -283,7 +283,7 @@ class BatteryAwareFedAvg(FedAvg):
         # Create a table for the current round with fixed column order
         # Add a column to mark clients that died (battery drained to 0) during THIS round
         columns = [
-            "round", "client_id", "current_battery_level", "previous_battery_level", "consumed_battery", "recharged_battery", 
+            "round", "client_id", "device_class", "current_battery_level", "previous_battery_level", "consumed_battery", "recharged_battery", 
             "prob_selection", "selected", "eligible", "is_dead_during_the_round", "rounds_since_selected",
         ]
         round_table = wandb.Table(columns=columns)
@@ -295,6 +295,7 @@ class BatteryAwareFedAvg(FedAvg):
                 row = [
                     server_round,
                     cid,
+                    self.fleet_manager.get_device_class(cid),
                     present_data[cid]["current_battery_level"],
                     present_data[cid]["previous_battery_level"],
                     present_data[cid]["consumed_battery"],
@@ -308,7 +309,7 @@ class BatteryAwareFedAvg(FedAvg):
             else:
                 # Client not available this round: NaN for battery related values, 0 for others
                 is_dead = 0
-                row = [server_round, cid, np.nan, np.nan, np.nan, np.nan, 0.0, 0, 0, is_dead, self._rounds_since_selected.get(cid, np.nan)]
+                row = [server_round, cid, self.fleet_manager.get_device_class(cid), np.nan, np.nan, np.nan, np.nan, 0.0, 0, 0, is_dead, self._rounds_since_selected.get(cid, np.nan)]
             round_table.add_data(*row)
 
         # Log table with distinct key for each round
