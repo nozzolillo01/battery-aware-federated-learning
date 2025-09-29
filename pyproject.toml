@@ -30,7 +30,7 @@ num-server-rounds = 50
 fraction-fit = 1.0
 local-epochs = 5
 min-battery-threshold = 0.2
-alpha = 2.5
+alpha = 1.2
 strategy = 1 #0 for base strategy, 1 for battery_aware strategy
 
 [tool.flwr.federations]

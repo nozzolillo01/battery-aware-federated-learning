@@ -15,16 +15,29 @@ from torchvision.transforms import Compose, Normalize, ToTensor
 from flwr_datasets import FederatedDataset
 
 class Net(nn.Module):
-    """Model (simple CNN adapted from 'PyTorch: A 60 Minute Blitz')"""
+    """
+    LeNet-style CNN for 32x32 RGB images.
 
-    def __init__(self):
+    - Conv1: in_channels=3, out_channels=6, kernel_size=5 -> 6x28x28
+    - MaxPool(2x2) -> 6x14x14
+    - Conv2: in_channels=6, out_channels=16, kernel_size=5 -> 16x10x10
+    - MaxPool(2x2) -> 16x5x5
+    - Flatten -> 16*5*5
+    - Dense1: 120
+    - Dense2: 84
+    - Output: num_classes (default 10)
+
+    ReLU after each conv and dense layer except the output layer.
+    """
+
+    def __init__(self, num_classes: int = 10):
         super(Net, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
         self.fc1 = nn.Linear(16 * 5 * 5, 120)
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+        self.fc3 = nn.Linear(84, num_classes)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
@@ -64,7 +77,7 @@ def load_data(partition_id: int, num_partitions: int) -> tuple:
     # Load dataset once and reuse for all clients
     if fds is None:
         #partitioner = IidPartitioner(num_partitions=num_partitions)
-        partitioner = DirichletPartitioner(num_partitions=num_partitions, alpha=0.5, partition_by="label")
+        partitioner = DirichletPartitioner(num_partitions=num_partitions, alpha=1, partition_by="label")
         fds = FederatedDataset(dataset="uoft-cs/cifar10", partitioners={"train": partitioner})
     
     # Load client's specific partition
@@ -99,7 +112,8 @@ def train(net, trainloader, epochs: int, device: torch.device):
         tuple: (final_loss, final_accuracy)
     """
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(net.parameters())
+    # Optimizer: SGD with learning rate 0.01 and momentum 0.5
+    optimizer = torch.optim.SGD(net.parameters(), lr=0.01, momentum=0.5)
     
     net.train()
     

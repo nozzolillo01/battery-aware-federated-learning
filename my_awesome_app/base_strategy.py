@@ -100,7 +100,7 @@ class BaseStrategy(FedAvg):
         # Create probability map with 1.0 for all clients eligible and 0 otherwise
 
         #select a random fraction of eligible clients
-        selected_clients = random.sample(eligible_clients, k=len(eligible_clients)//2)
+        selected_clients = random.sample(eligible_clients, k=len(eligible_clients)//10)
 
         prob_map: Dict[str, float] = {}
         for c in available_clients:
@@ -174,7 +174,7 @@ class BaseStrategy(FedAvg):
         # Create a table for the current round with fixed column order
         # Add column to mark clients that died during THIS round
         columns = [
-            "round", "client_id", "current_battery_level", "previous_battery_level", "consumed_battery", "recharged_battery", 
+            "round", "client_id", "device_class", "current_battery_level", "previous_battery_level", "consumed_battery", "recharged_battery", 
             "prob_selection", "selected", "eligible", "is_dead_during_the_round", "rounds_since_selected",
         ]
         round_table = wandb.Table(columns=columns)
@@ -185,6 +185,7 @@ class BaseStrategy(FedAvg):
                 row = [
                     server_round,
                     cid,
+                    self.fleet_manager.get_device_class(cid),
                     present_data[cid]["current_battery_level"],
                     present_data[cid]["previous_battery_level"],
                     present_data[cid]["consumed_battery"],
@@ -197,7 +198,7 @@ class BaseStrategy(FedAvg):
                 ]
             else:
                 # Client not available this round: NaN for battery related values, 0 for others
-                row = [server_round, cid, np.nan, np.nan, np.nan, np.nan, 0.0, 0, 0, 0, self._rounds_since_selected.get(cid, np.nan)]
+                row = [server_round, cid, self.fleet_manager.get_device_class(cid), np.nan, np.nan, np.nan, np.nan, 0.0, 0, 0, 0, self._rounds_since_selected.get(cid, np.nan)]
             round_table.add_data(*row)
 
         # Log table with distinct key for each round
