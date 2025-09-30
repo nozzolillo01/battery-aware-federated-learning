@@ -8,10 +8,9 @@ import os
 import sys
 import tomli
 import pathlib
-from typing import List, Tuple, Dict, Any, Optional
+from typing import List, Tuple, Optional
 from flwr.common import Context, ndarrays_to_parameters, Metrics
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
-from flwr.server.strategy import FedAvg
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 
@@ -93,8 +92,6 @@ def fit_metrics_weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
         denom = 0
         for num_examples, m in metrics:
             if key in m and m[key] is not None:
-                # For losses we still use sample-size weighting (invert not needed here),
-                # `invert` kept for completeness in case of future metrics.
                 acc += num_examples * float(m[key])
                 denom += num_examples
         return (acc / denom) if denom > 0 else None
@@ -159,7 +156,7 @@ def server_fn(context: Context) -> ServerAppComponents:
             alpha=alpha,
         )
     else:
-        # Base strategy with FedAvg
+        # Base strategy without battery awareness 
         strategy = BaseStrategy(
         fraction_fit=fraction_fit,
         fraction_evaluate=1.0,

@@ -11,41 +11,28 @@ class BatterySimulator:
     Tracks battery levels, consumption during training, and recharging when idle.
     """
     
-    # Constants for sensor types (kept for compatibility/possible future use)
-    SENSOR_TYPES = ["std_eff", "high_eff", "low_eff"]
-    HARVESTING_RANGES = {
-        "high_eff": (0.10, 0.20),
-        "low_eff" : (0.02, 0.05),
-        "std_eff" : (0.05, 0.10)
-    }
 
-    # New: hardware device classes with distinct energy profiles
+    # Hardware device classes with distinct energy profiles
     DEVICE_CLASSES: Dict[str, Dict[str, tuple]] = {
-        # Typical SBC like Raspberry Pi: moderate consumption, moderate harvesting
         "raspberry": {
-            "consumption_range": (0.08, 0.15),
-            "harvesting_range": (0.04, 0.08),
+            "consumption_range": (0.008, 0.015),   
+            "harvesting_range": (0.010, 0.025),    
         },
-        # Edge GPU nodes: higher compute power → higher consumption, lower harvesting
         "edgegpu": {
-            "consumption_range": (0.15, 0.25),
-            "harvesting_range": (0.02, 0.05),
+            "consumption_range": (0.015, 0.030),   
+            "harvesting_range": (0.006, 0.015),   
         },
-        # Ultra low-power microcontrollers: very low consumption, potentially higher harvesting from ambient
         "lowpowermcu": {
-            "consumption_range": (0.02, 0.05),
-            "harvesting_range": (0.06, 0.12),
+            "consumption_range": (0.003, 0.008),  
+            "harvesting_range": (0.012, 0.030),    
         },
     }
     
-    def __init__(self, client_id: str, sensor_type: str = None, device_class: str = None):
+    def __init__(self, client_id: str, device_class: str = None):
         self.client_id = client_id
         self.battery_level = random.uniform(0.1, 1.0)
         self.total_consumption = 0.0
         self.training_rounds = 0
-
-        # Assign sensor type (kept for compatibility)
-        self.sensor_type = sensor_type if sensor_type in self.SENSOR_TYPES else random.choice(self.SENSOR_TYPES)
 
         # Assign a hardware device class and set consumption/harvesting ranges accordingly
         if device_class not in self.DEVICE_CLASSES:
@@ -266,22 +253,22 @@ class FleetManager:
             local_epochs: Number of local training epochs executed per selected client in this round.
         """
         
-        # Update each client's battery
+        
         for client_id in all_clients:
             if client_id not in self.clients:
                 self.add_client(client_id)
-            
-            # Inizializza il consumo di batteria a 0
+
+            # Initialize battery consumption to 0
             self.client_consumed_battery[client_id] = 0.0
             
             if client_id in selected_clients:
-                # Salva il livello di batteria prima del consumo
+                # Save battery level before consumption
                 previous_level = self.clients[client_id].battery_level
                 
                 # Consume battery for selected clients
                 self.clients[client_id].consume_battery(local_epochs)
-                
-                # Calcola la quantità di batteria consumata
+
+                # Calculate the amount of battery consumed
                 consumed = previous_level - self.clients[client_id].battery_level
                 self.client_consumed_battery[client_id] = consumed
                 

@@ -181,7 +181,7 @@ class BatteryAwareFedAvg(FedAvg):
         probs = weights / weights.sum()
         
         # Select at least 1, at most half of eligible clients, but minimum 2 if possible
-        num_to_select = max(1, min(len(eligible_clients), len(eligible_clients) // 10))
+        num_to_select = max(1, min(len(eligible_clients), len(eligible_clients) // 2))
         if num_to_select < 2 and len(eligible_clients) >= 2:
             num_to_select = 2
             

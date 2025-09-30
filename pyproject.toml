@@ -26,21 +26,21 @@ serverapp = "my_awesome_app.server_app:app"
 clientapp = "my_awesome_app.client_app:app"
 
 [tool.flwr.app.config]
-num-server-rounds = 50
+num-server-rounds = 10
 fraction-fit = 1.0
-local-epochs = 5
+local-epochs = 3
 min-battery-threshold = 0.2
-alpha = 1.2
+alpha = 2
 strategy = 1 #0 for base strategy, 1 for battery_aware strategy
 
 [tool.flwr.federations]
 default = "small-simulation"
 
 [tool.flwr.federations.small-simulation]
-options.num-supernodes = 10
-
-[tool.flwr.federations.medium-simulation]
 options.num-supernodes = 50
 
+[tool.flwr.federations.medium-simulation]
+options.num-supernodes = 500
+
 [tool.flwr.federations.large-simulation]
-options.num-supernodes = 100
+options.num-supernodes = 5000

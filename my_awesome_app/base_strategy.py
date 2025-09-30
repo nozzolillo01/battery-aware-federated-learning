@@ -100,7 +100,7 @@ class BaseStrategy(FedAvg):
         # Create probability map with 1.0 for all clients eligible and 0 otherwise
 
         #select a random fraction of eligible clients
-        selected_clients = random.sample(eligible_clients, k=len(eligible_clients)//10)
+        selected_clients = random.sample(eligible_clients, k=len(eligible_clients)//2)
 
         prob_map: Dict[str, float] = {}
         for c in available_clients:
