@@ -3,14 +3,11 @@ Task module for federated learning.
 Implements a CNN model and data loading utilities.
 """
 
-#import warnings
-#warnings.filterwarnings("ignore", category=FutureWarning)
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from flwr_datasets.partitioner import IidPartitioner, DirichletPartitioner
+from flwr_datasets.partitioner import DirichletPartitioner
 from torchvision.transforms import Compose, Normalize, ToTensor
 from flwr_datasets import FederatedDataset
 
@@ -77,7 +74,7 @@ def load_data(partition_id: int, num_partitions: int) -> tuple:
     # Load dataset once and reuse for all clients
     if fds is None:
         #partitioner = IidPartitioner(num_partitions=num_partitions)
-        partitioner = DirichletPartitioner(num_partitions=num_partitions, alpha=1, partition_by="label")
+        partitioner = DirichletPartitioner(num_partitions=num_partitions, alpha=0.1, partition_by="label")
         fds = FederatedDataset(dataset="uoft-cs/cifar10", partitioners={"train": partitioner})
     
     # Load client's specific partition
