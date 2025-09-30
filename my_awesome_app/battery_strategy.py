@@ -30,7 +30,7 @@ class BatteryAwareFedAvg(FedAvg):
     """Energy-aware variant of FedAvg with quadratic battery-based selection."""
 
     def __init__(self, *args, **kwargs) -> None:
-        # Receive optional config from server
+        # Receive optional config from server (pop before super().__init__)
         self.total_rounds_config = kwargs.pop("total_rounds", None)
         self.local_epochs_config = kwargs.pop("local_epochs", None)
         self.num_supernodes = kwargs.pop("num_supernodes", None)
@@ -41,7 +41,9 @@ class BatteryAwareFedAvg(FedAvg):
         # Init parent with the remaining kwargs
         super().__init__(*args, **kwargs)
 
+        # Initialize fleet manager after parent init
         self.fleet_manager = FleetManager()
+
         self.results_to_save = {}
         self.last_selected_count = 0
         self.last_selected_battery_avg = None
@@ -61,10 +63,6 @@ class BatteryAwareFedAvg(FedAvg):
         self._loss_series = {"train": [], "val": [], "test": []}
 
     def _init_wandb_run(self) -> None:
-        """
-        Initialize Weights & Biases run with timestamped name.
-        Creates a unique run name based on current date and time.
-        """
         tz = ZoneInfo("Europe/Rome")
         timestamp = datetime.now(tz).strftime("%Y-%m-%d_%H:%M:%S")
         wandb.init(
@@ -87,10 +85,6 @@ class BatteryAwareFedAvg(FedAvg):
             pass
 
     def _print_run_header(self) -> None:
-        """
-        Print minimal run configuration header to the terminal.
-        Displays key parameters of the current federated learning run.
-        """
         config_items = [
             ("num-supernodes", self.num_supernodes),
             ("num-server-rounds", self.total_rounds_config),
@@ -105,28 +99,10 @@ class BatteryAwareFedAvg(FedAvg):
                 print(f"{name} = {value}")
 
     def _extract_available_clients(self, original_config: List[Tuple[ClientProxy, Dict]]) -> List[ClientProxy]:
-        """
-        Extract available clients from original config.
-
-        Args:
-            original_config: Configuration from parent class
-            
-        Returns:
-            List[ClientProxy]: List of available clients
-        """
         available_clients = [client for client, _ in original_config]
         return available_clients
 
     def _eligible_clients(self, available_clients: List[ClientProxy]) -> List[ClientProxy]:
-        """
-        Filter clients based on battery threshold.
-        
-        Args:
-            available_clients: List of available clients
-            
-        Returns:
-            List[ClientProxy]: Clients with sufficient battery level
-        """
         eligible_ids = self.fleet_manager.get_eligible_clients(
             [c.cid for c in available_clients], 
             self.min_battery_threshold
@@ -134,16 +110,6 @@ class BatteryAwareFedAvg(FedAvg):
         return [c for c in available_clients if c.cid in eligible_ids]
 
     def _fallback_topk_by_battery(self, available_clients: List[ClientProxy], k: int = 2) -> List[ClientProxy]:
-        """
-        Select top-k clients by battery level as fallback.
-        
-        Args:
-            available_clients: List of available clients
-            k: Number of clients to select
-            
-        Returns:
-            List[ClientProxy]: Top-k clients by battery level
-        """
         levels = [(c, self.fleet_manager.get_battery_level(c.cid)) for c in available_clients]
         levels.sort(key=lambda x: x[1], reverse=True)
         return [c for c, _ in levels[:k]]
@@ -153,16 +119,6 @@ class BatteryAwareFedAvg(FedAvg):
         eligible_clients: List[ClientProxy], 
         available_clients: List[ClientProxy]
     ) -> Tuple[List[ClientProxy], Dict[str, float]]:
-        """
-        Perform probabilistic client selection with quadratic battery weighting.
-        
-        Args:
-            eligible_clients: List of clients eligible for selection
-            available_clients: List of all available clients
-            
-        Returns:
-            tuple: (selected_clients, probability_map)
-        """
         prob_map: Dict[str, float] = {}
         
         # If we have very few eligible clients, select all of them
@@ -201,15 +157,6 @@ class BatteryAwareFedAvg(FedAvg):
         return selected_clients, prob_map
 
     def _capture_selected_stats(self, selected_client_ids: List[str]) -> None:
-        """
-        Capture statistics about selected clients.
-        
-        Stores count, average battery level and minimum battery level
-        of selected clients for reporting and analysis.
-        
-        Args:
-            selected_client_ids: List of IDs of selected clients
-        """
         self.last_selected_count = len(selected_client_ids)
         
         if selected_client_ids:
@@ -233,16 +180,6 @@ class BatteryAwareFedAvg(FedAvg):
         prob_map: Dict[str, float],
         deaths_ids: List[str]
     ) -> None:
-        """
-        Log detailed client selection data to Weights & Biases.
-        
-        Args:
-            server_round: Current federated learning round
-            available_clients: List of available clients
-            selected_client_ids: List of IDs of selected clients
-            eligible_ids: List of IDs of eligible clients
-            prob_map: Map of client IDs to selection probabilities
-        """
         # Update stable client ordering (add new clients while maintaining sort)
         newly_seen = [c.cid for c in available_clients if c.cid not in self._client_id_order]
         if newly_seen:
@@ -325,17 +262,6 @@ class BatteryAwareFedAvg(FedAvg):
             self._prev_battery_levels[c.cid] = self.fleet_manager.get_battery_level(c.cid)
 
     def configure_fit(self, server_round: int, parameters: Parameters, client_manager) -> List[Tuple[ClientProxy, dict]]:
-        """Select clients in an energy-aware manner and configure their fit.
-
-        Steps:
-        1. Get original client configuration from parent.
-        2. Filter clients based on battery threshold.
-        3. If none eligible, select top-2 by battery level.
-        4. If more than 2 eligible, perform probabilistic selection with quadratic weighting.
-        5. Update fleet battery levels post-selection.
-        6. Return selected clients with their configuration.
-
-        """
         original_config = super().configure_fit(server_round, parameters, client_manager)
         if not original_config:
             return []
@@ -383,15 +309,26 @@ class BatteryAwareFedAvg(FedAvg):
 
         # Rimuovi i death dai client effettivamente inviati al server (non scambiano i pesi)
         selected_clients = [c for c in selected_clients if c.cid not in deaths]
+
+        # Ricorda i client che hanno effettivamente fatto fit in questo round
+        self._selected_for_fit_last_round = [c.cid for c in selected_clients]
+
         return [(client, config) for client in selected_clients]
 
+    def configure_evaluate(self, server_round: int, parameters: Parameters, client_manager) -> List[Tuple[ClientProxy, dict]]:
+        original = super().configure_evaluate(server_round, parameters, client_manager)
+        if not original:
+            return []
+
+        selected_ids = getattr(self, "_selected_for_fit_last_round", None)
+        if not selected_ids:
+            return original
+
+        selected_set = set(selected_ids)
+        filtered = [(c, cfg) for (c, cfg) in original if c.cid in selected_set]
+        return filtered if filtered else original
+
     def _extract_battery_metrics(self) -> Dict[str, float]:
-        """
-        Extract battery-related metrics from fleet statistics.
-        
-        Returns:
-            Dict[str, float]: Dictionary with battery metrics
-        """
         fleet_stats = self.fleet_manager.get_fleet_stats(self.min_battery_threshold)
         return {
             "fleet_avg_battery": fleet_stats.get("avg_battery", 0),
@@ -406,17 +343,6 @@ class BatteryAwareFedAvg(FedAvg):
         results: List[Tuple[ClientProxy, FitRes]],
         failures: List[Tuple[ClientProxy, FitRes]],
     ) -> Tuple[Optional[Parameters], Dict[str, Any]]:
-        """
-        Aggregate as FedAvg and augment metrics with fleet battery statistics.
-        
-        Args:
-            server_round: The current round of federated learning
-            results: List of successful client results
-            failures: List of failed client results
-            
-        Returns:
-            tuple: (aggregated_parameters, metrics_dict)
-        """
         # Let parent class handle the actual parameter aggregation
         parameters_aggregated, metrics_aggregated = super().aggregate_fit(
             server_round, results, failures
@@ -442,17 +368,6 @@ class BatteryAwareFedAvg(FedAvg):
         return parameters_aggregated, metrics_aggregated
 
     def _prepare_evaluation_metrics(self, server_round: int, loss: float, metrics: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Prepare detailed metrics for evaluation results, including battery statistics.
-        
-        Args:
-            server_round: Current round number
-            loss: Evaluation loss
-            metrics: Base metrics from evaluation
-            
-        Returns:
-            Dict[str, Any]: Enhanced metrics with battery statistics
-        """
         fleet_stats = self.fleet_manager.get_fleet_stats(self.min_battery_threshold)
         battery_metrics = {
             "battery_avg": fleet_stats.get("avg_battery", 0),
@@ -506,13 +421,6 @@ class BatteryAwareFedAvg(FedAvg):
         return results
      
     def _log_results_to_wandb(self, server_round: int, analysis_results: Dict[str, Any]) -> None:
-        """
-        Log evaluation results to Weights & Biases.
-        
-        Args:
-            server_round: Current round number
-            analysis_results: Results to log
-        """
         # Create a copy of the results for WandB
         wandb_payload = {
             k: v for k, v in analysis_results.items() 
@@ -557,14 +465,6 @@ class BatteryAwareFedAvg(FedAvg):
             pass
         
     def _print_evaluation_summary(self, server_round: int, loss: float, metrics: Dict[str, Any]) -> None:
-        """
-        Print minimal evaluation summary to terminal.
-        
-        Args:
-            server_round: Current round number
-            loss: Evaluation loss
-            metrics: Evaluation metrics
-        """
         try:
             # Show both accuracy and loss with requested names; NA if missing
             val_acc = metrics.get("val_accuracy_client")
@@ -592,16 +492,6 @@ class BatteryAwareFedAvg(FedAvg):
     def evaluate(
         self, server_round: int, parameters: Parameters
     ) -> Optional[Tuple[float, Dict[str, Any]]]:
-        """
-        Evaluate as FedAvg and enrich metrics and logs with battery stats.
-        
-        Args:
-            server_round: The current round of federated learning
-            parameters: Model parameters to evaluate
-            
-        Returns:
-            Optional[Tuple[float, Dict[str, Any]]]: Evaluation results or None
-        """
         # Let parent class handle the actual evaluation
         result = super().evaluate(server_round, parameters)
         if result is None:
