@@ -14,7 +14,7 @@ from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 
-from my_awesome_app.task import Net, get_weights, set_weights, test, get_transforms
+from my_awesome_app.task import Net, get_weights, load_centralized_dataset, set_weights, test, get_transforms
 from my_awesome_app.battery_strategy import BatteryAwareFedAvg
 from my_awesome_app.base_strategy import BaseStrategy
 
@@ -46,10 +46,10 @@ def get_evaluate_fn(testloader, device):
         function: Evaluation function for the federated strategy
     """
     def evaluate(server_round, parameters_ndarrays, config):
-        net = Net()
-        set_weights(net, parameters_ndarrays)
-        net.to(device)
-        loss, accuracy = test(net, testloader, device)
+        model = Net()
+        set_weights(model, parameters_ndarrays)
+        model.to(device)
+        loss, accuracy = test(model, testloader, device)
         # Emit server-side test metric with the final, explicit name
         return loss, {"test_accuracy_server": accuracy}
 
@@ -116,10 +116,11 @@ def server_fn(context: Context) -> ServerAppComponents:
     # Extract configuration
     num_rounds = context.run_config["num-server-rounds"]
     fraction_fit = context.run_config["fraction-fit"]
-    min_battery_threshold = context.run_config["min-battery-threshold"]
     local_epochs = context.run_config.get("local-epochs", None)
+    lr = context.run_config.get("lr", 0.01)
     strategy = context.run_config.get("strategy", 0)
     alpha = context.run_config.get("alpha", 2.0)
+    min_battery_threshold = context.run_config.get("min-battery-threshold", None)
     num_supernodes = get_num_supernodes_from_config()
 
 
@@ -128,16 +129,9 @@ def server_fn(context: Context) -> ServerAppComponents:
     ndarrays = get_weights(Net())
     parameters = ndarrays_to_parameters(ndarrays)
 
-    # Load and prepare centralized test dataset for server-side evaluation
-    test_dataset = load_dataset("uoft-cs/cifar10", split="test")
-
-    def apply_transforms(batch):
-        transforms = get_transforms()
-        batch["img"] = [transforms(img) for img in batch["img"]]
-        return batch
-
-    dataset = test_dataset.with_transform(apply_transforms)
-    testloader = DataLoader(dataset, batch_size=128)
+    # Load centralized test dataloader for server-side evaluation
+    # Note: load_centralized_dataset already returns a DataLoader
+    testloader = load_centralized_dataset()
 
     if strategy == 1:
         # Create battery-aware strategy
@@ -149,11 +143,11 @@ def server_fn(context: Context) -> ServerAppComponents:
             evaluate_metrics_aggregation_fn=weighted_average,
             fit_metrics_aggregation_fn=fit_metrics_weighted_average,
             evaluate_fn=get_evaluate_fn(testloader, device="cpu"),
-            min_battery_threshold=min_battery_threshold,
             total_rounds=num_rounds,
             local_epochs=local_epochs,
             num_supernodes=num_supernodes,
             alpha=alpha,
+            min_battery_threshold=min_battery_threshold,
         )
     else:
         # Base strategy without battery awareness 

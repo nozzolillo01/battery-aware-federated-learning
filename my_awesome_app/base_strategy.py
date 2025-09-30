@@ -257,7 +257,30 @@ class BaseStrategy(FedAvg):
         # Exclude death clients from actual fit (they don't exchange weights)
         selected_clients = [c for c in selected_clients if c.cid not in deaths]
 
+        # Remember which clients actually participated in fit this round
+        self._selected_for_fit_last_round = [c.cid for c in selected_clients]
+
         return [(client, config) for client in selected_clients]
+
+    def configure_evaluate(self, server_round: int, parameters: Parameters, client_manager) -> List[Tuple[ClientProxy, dict]]:
+        """Restrict client-side evaluation to clients selected for fit.
+
+        If no selection information is available (e.g., round 0) or the
+        intersection is empty, fall back to the parent behavior.
+        """
+        original = super().configure_evaluate(server_round, parameters, client_manager)
+        if not original:
+            return []
+
+        selected_ids = getattr(self, "_selected_for_fit_last_round", None)
+        if not selected_ids:
+            return original  # No info yet → evaluate as usual
+
+        selected_set = set(selected_ids)
+        filtered = [(c, cfg) for (c, cfg) in original if c.cid in selected_set]
+
+        # If filtering removes all, keep original to avoid empty evaluation
+        return filtered if filtered else original
 
     def _extract_battery_metrics(self) -> Dict[str, float]:
 

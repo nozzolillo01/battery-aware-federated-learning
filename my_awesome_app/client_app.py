@@ -16,8 +16,8 @@ class FlowerClient(NumPyClient):
     Handles local model training and evaluation, with proper
     device management and metrics tracking.
     """
-    
-    def __init__(self, net: Net, trainloader, valloader, local_epochs: int, context: Context):
+
+    def __init__(self, net: Net, trainloader, valloader, local_epochs: int, lr: float, context: Context):
         """
         Initialize the Flower client with model and data loaders.
         
@@ -33,6 +33,7 @@ class FlowerClient(NumPyClient):
         self.trainloader = trainloader
         self.valloader = valloader
         self.local_epochs = local_epochs
+        self.lr = lr
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.net.to(self.device)
 
@@ -59,7 +60,8 @@ class FlowerClient(NumPyClient):
             self.net,
             self.trainloader,
             self.local_epochs,
-            self.device,
+            self.lr,
+            device=self.device,
         )
 
         # Return updated model and metrics
@@ -110,13 +112,14 @@ def client_fn(context: Context):
     num_partitions = context.node_config["num-partitions"]
     
     # Load data for this client
-    trainloader, valloader = load_data(partition_id, num_partitions)
+    trainloader, valloader = load_data(partition_id, num_partitions, batch_size=32)
     
     # Get configuration
     local_epochs = context.run_config["local-epochs"]
+    lr = context.run_config.get("lr", 0.01)
     
     # Create and return client
-    return FlowerClient(net, trainloader, valloader, local_epochs, context).to_client()
+    return FlowerClient(net, trainloader, valloader, local_epochs, lr, context).to_client()
 
 
 # Register client app
