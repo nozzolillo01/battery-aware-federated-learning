@@ -14,9 +14,8 @@ from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 
-from my_awesome_app.task import Net, get_weights, load_centralized_dataset, set_weights, test, get_transforms
-from my_awesome_app.battery_strategy import BatteryAwareFedAvg
-from my_awesome_app.base_strategy import BaseStrategy
+from .task import Net, get_weights, load_centralized_dataset, set_weights, test, get_transforms
+from .strategies import BatteryAwareClientFedAvg, RandomClientFedAvg
 
 # Configure logging and environment
 logging.getLogger("flwr").setLevel(logging.CRITICAL)
@@ -118,7 +117,7 @@ def server_fn(context: Context) -> ServerAppComponents:
     fraction_fit = context.run_config["fraction-fit"]
     local_epochs = context.run_config.get("local-epochs", None)
     lr = context.run_config.get("lr", 0.01)
-    strategy = context.run_config.get("strategy", 0)
+    strategy_id = context.run_config.get("strategy", 0)
     alpha = context.run_config.get("alpha", 2.0)
     min_battery_threshold = context.run_config.get("min-battery-threshold", None)
     num_supernodes = get_num_supernodes_from_config()
@@ -133,9 +132,9 @@ def server_fn(context: Context) -> ServerAppComponents:
     # Note: load_centralized_dataset already returns a DataLoader
     testloader = load_centralized_dataset()
 
-    if strategy == 1:
+    if strategy_id == 1:
         # Create battery-aware strategy
-        strategy = BatteryAwareFedAvg(
+        strategy_impl = BatteryAwareClientFedAvg(
             fraction_fit=fraction_fit,
             fraction_evaluate=1.0,
             min_available_clients=2,
@@ -151,23 +150,23 @@ def server_fn(context: Context) -> ServerAppComponents:
         )
     else:
         # Base strategy without battery awareness 
-        strategy = BaseStrategy(
-        fraction_fit=fraction_fit,
-        fraction_evaluate=1.0,
-        min_available_clients=2,
-        initial_parameters=parameters,
-        evaluate_metrics_aggregation_fn=weighted_average,
-        fit_metrics_aggregation_fn=fit_metrics_weighted_average,
-        evaluate_fn=get_evaluate_fn(testloader, device="cpu"),
-        total_rounds=num_rounds,
-        local_epochs=local_epochs,
-        num_supernodes=num_supernodes,
-    )
+        strategy_impl = RandomClientFedAvg(
+            fraction_fit=fraction_fit,
+            fraction_evaluate=1.0,
+            min_available_clients=2,
+            initial_parameters=parameters,
+            evaluate_metrics_aggregation_fn=weighted_average,
+            fit_metrics_aggregation_fn=fit_metrics_weighted_average,
+            evaluate_fn=get_evaluate_fn(testloader, device="cpu"),
+            total_rounds=num_rounds,
+            local_epochs=local_epochs,
+            num_supernodes=num_supernodes,
+        )
 
     # Configure server
     config = ServerConfig(num_rounds=num_rounds)
 
-    return ServerAppComponents(strategy=strategy, config=config)
+    return ServerAppComponents(strategy=strategy_impl, config=config)
 
 
 # Register server app
