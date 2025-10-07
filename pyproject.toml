@@ -38,10 +38,10 @@ strategy = 1 #0 for base strategy, 1 for battery_aware strategy
 default = "small-simulation"
 
 [tool.flwr.federations.small-simulation]
-options.num-supernodes = 50
+options.num-supernodes = 10
 
 [tool.flwr.federations.medium-simulation]
-options.num-supernodes = 200
+options.num-supernodes = 50
 
 [tool.flwr.federations.large-simulation]
-options.num-supernodes = 1000
+options.num-supernodes = 200

@@ -1,12 +1,9 @@
 """Battery-aware selection strategy."""
 
 from __future__ import annotations
-
 from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
-
 import numpy as np
 from flwr.server.client_proxy import ClientProxy
-
 from .base import ClientSelectionStrategy
 
 if TYPE_CHECKING:  # pragma: no cover

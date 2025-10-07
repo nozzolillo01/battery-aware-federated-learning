@@ -1,12 +1,9 @@
 """Random subset selection strategy."""
 
 from __future__ import annotations
-
 import random
 from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
-
 from flwr.server.client_proxy import ClientProxy
-
 from .base import ClientSelectionStrategy
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -24,7 +21,7 @@ class RandomSubsetSelection(ClientSelectionStrategy):
         eligible_clients: List[ClientProxy],
         available_clients: List[ClientProxy],
         *,
-        fleet_manager: Optional["FleetManager"] = None,  # Unused but part of the protocol
+        fleet_manager: Optional["FleetManager"] = None,  # Unused
         num_clients: Optional[int] = None,
     ) -> Tuple[List[ClientProxy], Dict[str, float]]:
         if not eligible_clients:
