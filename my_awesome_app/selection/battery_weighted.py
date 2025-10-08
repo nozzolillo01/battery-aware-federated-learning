@@ -49,30 +49,26 @@ class BatteryWeightedSelection(ClientSelectionStrategy):
         fleet_manager: Optional["FleetManager"] = None,
         num_clients: Optional[int] = None,
     ) -> Tuple[List[ClientProxy], Dict[str, float]]:
-        if fleet_manager is None:
-            raise ValueError("BatteryWeightedSelection requires a FleetManager instance")
 
-        working_clients = eligible_clients
-        if not working_clients:
-            working_clients = self._fallback_topk_by_battery(available_clients, fleet_manager)
 
-        if not working_clients:
-            return [], {client.cid: 0.0 for client in available_clients}
+        if not eligible_clients:
+            eligible_clients = self._fallback_topk_by_battery(available_clients, fleet_manager)
 
-        weights_map = fleet_manager.calculate_selection_weights([client.cid for client in working_clients], self.alpha)
-        weights = np.array([max(weights_map.get(client.cid, 0.0), 0.0) for client in working_clients], dtype=float)
+
+        weights_map = fleet_manager.calculate_selection_weights([client.cid for client in eligible_clients], self.alpha)
+        weights = np.array([max(weights_map.get(client.cid, 0.0), 0.0) for client in eligible_clients], dtype=float)
         if weights.sum() <= 0:
-            weights = np.ones(len(working_clients), dtype=float)
+            weights = np.ones(len(eligible_clients), dtype=float)
 
         probabilities = weights / weights.sum()
 
         if num_clients is None:
-            desired = max(len(working_clients) // 2, self.min_selected)
+            desired = max(len(available_clients) // 2, self.min_selected)
         else:
             desired = num_clients
-        desired = max(1, min(desired, len(working_clients)))
+        desired = max(1, min(desired, len(eligible_clients)))
 
-        indices = np.random.choice(len(working_clients), size=desired, replace=False, p=probabilities)
-        selected_clients = [working_clients[index] for index in indices]
-        probability_map = self._build_probability_map(available_clients, working_clients, probabilities)
+        indices = np.random.choice(len(eligible_clients), size=desired, replace=False, p=probabilities)
+        selected_clients = [eligible_clients[index] for index in indices]
+        probability_map = self._build_probability_map(available_clients, eligible_clients, probabilities)
         return selected_clients, probability_map

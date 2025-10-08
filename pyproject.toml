@@ -28,8 +28,7 @@ clientapp = "my_awesome_app.client_app:app"
 [tool.flwr.app.config]
 num-server-rounds = 10
 fraction-fit = 1.0
-local-epochs = 3
-lr=0.01
+local-epochs = 5
 min-battery-threshold = 0.2
 alpha = 2
 strategy = 1 #0 for base strategy, 1 for battery_aware strategy

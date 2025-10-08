@@ -1,20 +1,15 @@
 """
-Server application for the battery-aware federated learning system.
-Configures and runs the FL server with energy-aware client selection.
+Flower server application for federated learning.
 """
 
 import logging
 import os
 import sys
-import tomli
-import pathlib
 from typing import List, Tuple, Optional
 from flwr.common import Context, ndarrays_to_parameters, Metrics
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
-from datasets import load_dataset
-from torch.utils.data import DataLoader
 
-from .task import Net, get_weights, load_centralized_dataset, set_weights, test, get_transforms
+from .task import Net, get_weights, load_centralized_dataset, set_weights, test
 from .strategies import BatteryAwareClientFedAvg, RandomClientFedAvg
 
 # Configure logging and environment
@@ -32,104 +27,64 @@ def get_num_supernodes_from_config() -> int:
             if value is not None:
                 return int(value)
 
+def evaluate_global_model(server_round, parameters_ndarrays, config, testloader, device):
+    """Evaluate the global model using a centralized test set."""
+    model = Net()
+    set_weights(model, parameters_ndarrays)
+    model.to(device)
+    loss, accuracy = test(model, testloader, device)
 
-def get_evaluate_fn(testloader, device):
-    """
-    Create an evaluation function for the global model using a centralized test set.
-
-    Args:
-        testloader: DataLoader with test data
-        device: Device to run evaluation on
-
-    Returns:
-        function: Evaluation function for the federated strategy
-    """
-    def evaluate(server_round, parameters_ndarrays, config):
-        model = Net()
-        set_weights(model, parameters_ndarrays)
-        model.to(device)
-        loss, accuracy = test(model, testloader, device)
-        # Emit server-side test metric with the final, explicit name
-        return loss, {"test_accuracy_server": accuracy}
-
-    return evaluate
-
+    return loss, {"test_accuracy_server": accuracy}
 
 def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
-    """
-    Aggregate client metrics using weighted average.
-    
-    Args:
-        metrics: List of tuples (sample_size, metrics_dict)
-        
-    Returns:
-        Metrics: Aggregated metrics
-    """
+    """Aggregate client metrics using weighted average."""
     accuracies = [num_examples * m["accuracy"] for num_examples, m in metrics]
     total_examples = sum(num_examples for num_examples, _ in metrics)
-    
-    return {
-        "accuracy": sum(accuracies) / total_examples if total_examples > 0 else 0,
-    }
 
+    return { "accuracy": sum(accuracies) / total_examples if total_examples > 0 else 0 }
 
 def fit_metrics_weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
-    """
-    Aggregate client fit metrics using weighted averages by sample size.
-
-    Expects each client's metrics to potentially include:
-      - train_loss, train_accuracy
-      - val_loss, val_accuracy
-    Missing keys are ignored gracefully.
-    """
+    """Aggregate client fit metrics using weighted averages by sample size."""
     total_examples = sum(num_examples for num_examples, _ in metrics)
     if total_examples == 0:
         return {}
 
-    def wavg(key: str, invert: bool = False) -> Optional[float]:
-        acc = 0.0
-        denom = 0
-        for num_examples, m in metrics:
-            if key in m and m[key] is not None:
-                acc += num_examples * float(m[key])
-                denom += num_examples
-        return (acc / denom) if denom > 0 else None
+    train_loss_sum = 0.0
+    train_accuracy_sum = 0.0
+    val_loss_sum = 0.0
+    val_accuracy_sum = 0.0
+
+    for num_examples, m in metrics:
+        if "train_loss" in m and m["train_loss"] is not None:
+            train_loss_sum += num_examples * float(m["train_loss"])
+        if "train_accuracy" in m and m["train_accuracy"] is not None:
+            train_accuracy_sum += num_examples * float(m["train_accuracy"])
+        if "val_loss" in m and m["val_loss"] is not None:
+            val_loss_sum += num_examples * float(m["val_loss"])
+        if "val_accuracy" in m and m["val_accuracy"] is not None:
+            val_accuracy_sum += num_examples * float(m["val_accuracy"])
 
     return {
-        "train_loss": wavg("train_loss"),
-        "train_accuracy": wavg("train_accuracy"),
-        "val_loss": wavg("val_loss"),
-        "val_accuracy": wavg("val_accuracy"),
+        "train_loss": train_loss_sum / total_examples,
+        "train_accuracy": train_accuracy_sum / total_examples,
+        "val_loss": val_loss_sum / total_examples,
+        "val_accuracy": val_accuracy_sum / total_examples,
     }
 
 def server_fn(context: Context) -> ServerAppComponents:
-    """
-    Create and configure the FL server components.
-    
-    Args:
-        context: Server context from Flower
-        
-    Returns:
-        ServerAppComponents: Configured server components
-    """
-    # Extract configuration
+    """Create and configure the FL server components."""
+
     num_rounds = context.run_config["num-server-rounds"]
     fraction_fit = context.run_config["fraction-fit"]
     local_epochs = context.run_config.get("local-epochs", None)
-    lr = context.run_config.get("lr", 0.01)
     strategy_id = context.run_config.get("strategy", 0)
     alpha = context.run_config.get("alpha", 2.0)
     min_battery_threshold = context.run_config.get("min-battery-threshold", None)
     num_supernodes = get_num_supernodes_from_config()
 
-
-
-    # Initialize model parameters
     ndarrays = get_weights(Net())
     parameters = ndarrays_to_parameters(ndarrays)
 
-    # Load centralized test dataloader for server-side evaluation
-    # Note: load_centralized_dataset already returns a DataLoader
     testloader = load_centralized_dataset()
 
     if strategy_id == 1:
@@ -141,7 +96,7 @@ def server_fn(context: Context) -> ServerAppComponents:
             initial_parameters=parameters,
             evaluate_metrics_aggregation_fn=weighted_average,
             fit_metrics_aggregation_fn=fit_metrics_weighted_average,
-            evaluate_fn=get_evaluate_fn(testloader, device="cpu"),
+            evaluate_fn=lambda sr, pn, c: evaluate_global_model(sr, pn, c, testloader, "cpu"),
             total_rounds=num_rounds,
             local_epochs=local_epochs,
             num_supernodes=num_supernodes,
@@ -157,17 +112,15 @@ def server_fn(context: Context) -> ServerAppComponents:
             initial_parameters=parameters,
             evaluate_metrics_aggregation_fn=weighted_average,
             fit_metrics_aggregation_fn=fit_metrics_weighted_average,
-            evaluate_fn=get_evaluate_fn(testloader, device="cpu"),
+            evaluate_fn=lambda sr, pn, c: evaluate_global_model(sr, pn, c, testloader, "cpu"),
             total_rounds=num_rounds,
             local_epochs=local_epochs,
             num_supernodes=num_supernodes,
         )
 
-    # Configure server
     config = ServerConfig(num_rounds=num_rounds)
 
     return ServerAppComponents(strategy=strategy_impl, config=config)
-
 
 # Register server app
 app = ServerApp(server_fn=server_fn)

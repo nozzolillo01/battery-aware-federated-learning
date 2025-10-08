@@ -92,7 +92,7 @@ def train(net, trainloader, epochs: int, lr: float, device: torch.device):
     return epoch_loss, epoch_acc
 
 def test(net, testloader, device: torch.device):
-    """Validate a neural network on the given data."""
+    """Test a neural network on the given data."""
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss().to(device)
     correct, loss = 0, 0.0
@@ -112,18 +112,15 @@ def test(net, testloader, device: torch.device):
     
     return loss, accuracy
 
-
 def get_weights(net):
     """Extract model weights as a list of NumPy arrays."""
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
-
 
 def set_weights(net, parameters):
     """Set model weights from a list of NumPy arrays."""
     params_dict = zip(net.state_dict().keys(), parameters)
     state_dict = {k: torch.tensor(v) for k, v in params_dict}
     net.load_state_dict(state_dict, strict=True)
-
 
 def get_transforms():
     """Return the transforms used for the dataset."""
