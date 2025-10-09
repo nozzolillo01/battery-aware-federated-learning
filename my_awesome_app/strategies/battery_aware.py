@@ -15,20 +15,17 @@ class BatteryAwareClientFedAvg(FleetAwareFedAvg):
         self,
         *args: Any,
         alpha: float = 2.0,
+        sample_fraction: float = 0.5,
         min_battery_threshold: float = 0.0,
-        fallback_top_k: int = 2,
-        min_selected: int = 2,
         **kwargs: Any,
     ) -> None:
         strategy_name = kwargs.pop("strategy", "battery_aware")
         self.alpha = float(alpha)
+        self.sample_fraction = float(sample_fraction)
         self.min_battery_threshold = float(min_battery_threshold)
-        self.fallback_top_k = fallback_top_k
-        self.min_selected = min_selected
         selection_strategy = BatteryWeightedSelection(
             alpha=self.alpha,
-            fallback_top_k=fallback_top_k,
-            min_selected=min_selected,
+            sample_fraction=sample_fraction,
         )
         super().__init__(
             *args,
@@ -44,8 +41,7 @@ class BatteryAwareClientFedAvg(FleetAwareFedAvg):
             {
                 "min_battery_threshold": self.min_battery_threshold,
                 "alpha": self.alpha,
-                "fallback_top_k": self.fallback_top_k,
-                "min_selected": self.min_selected,
+                "sample_fraction": self.sample_fraction,
             }
         )
         return config
@@ -56,8 +52,7 @@ class BatteryAwareClientFedAvg(FleetAwareFedAvg):
             [
                 ("min-battery-threshold", self.min_battery_threshold),
                 ("alpha", self.alpha),
-                ("fallback-top-k", self.fallback_top_k),
-                ("min-selected", self.min_selected),
+                ("sample-fraction", self.sample_fraction),
             ]
         )
         return extra

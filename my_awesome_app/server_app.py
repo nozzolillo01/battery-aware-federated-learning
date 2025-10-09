@@ -78,6 +78,7 @@ def server_fn(context: Context) -> ServerAppComponents:
     fraction_fit = context.run_config["fraction-fit"]
     local_epochs = context.run_config.get("local-epochs", None)
     strategy_id = context.run_config.get("strategy", 0)
+    sample_fraction = context.run_config.get("sample-fraction", 0.5)
     alpha = context.run_config.get("alpha", 2.0)
     min_battery_threshold = context.run_config.get("min-battery-threshold", None)
     num_supernodes = get_num_supernodes_from_config()
@@ -100,6 +101,7 @@ def server_fn(context: Context) -> ServerAppComponents:
             total_rounds=num_rounds,
             local_epochs=local_epochs,
             num_supernodes=num_supernodes,
+            sample_fraction=sample_fraction,
             alpha=alpha,
             min_battery_threshold=min_battery_threshold,
         )
@@ -116,6 +118,7 @@ def server_fn(context: Context) -> ServerAppComponents:
             total_rounds=num_rounds,
             local_epochs=local_epochs,
             num_supernodes=num_supernodes,
+            sample_fraction=sample_fraction,
         )
 
     config = ServerConfig(num_rounds=num_rounds)

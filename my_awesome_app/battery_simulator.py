@@ -11,17 +11,17 @@ class BatterySimulator:
     """
 
     DEVICE_CLASSES: Dict[str, Dict[str, tuple]] = {
-        "Type_1": {
-            "consumption_range": (0.005, 0.015),  # Low consumption 
-            "harvesting_range": (0.0, 0.010),   
+        "low_power_sensor": {
+            "consumption_range": (0.005, 0.015),
+            "harvesting_range": (0.0, 0.010),
         },
-        "Type_2": {
-            "consumption_range": (0.020, 0.030),  # Moderate consumption
-            "harvesting_range": (0.0, 0.025),   
+        "mid_edge_device": {
+            "consumption_range": (0.020, 0.030),
+            "harvesting_range": (0.0, 0.025),
         },
-        "Type_3": {
-            "consumption_range": (0.040, 0.060),  # High consumption
-            "harvesting_range": (0.0, 0.050),   
+        "high_power_gateway": {
+            "consumption_range": (0.040, 0.060),
+            "harvesting_range": (0.0, 0.050),
         },
     }
     

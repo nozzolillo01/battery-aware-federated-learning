@@ -26,12 +26,22 @@ serverapp = "my_awesome_app.server_app:app"
 clientapp = "my_awesome_app.client_app:app"
 
 [tool.flwr.app.config]
-num-server-rounds = 10
-fraction-fit = 1.0
-local-epochs = 5
-min-battery-threshold = 0.2
-alpha = 2
-strategy = 1 #0 for base strategy, 1 for battery_aware strategy
+# Training configuration
+num-server-rounds = 10        # Number of federated learning rounds
+fraction-fit = 1.0            # Fraction of clients Flower samples (used by base FedAvg)
+local-epochs = 5              # Number of local training epochs per client
+
+# Client selection strategy
+strategy = 1                  # 0 = random_baseline (uniform random selection)
+                             # 1 = battery_aware (battery-weighted probabilistic selection)
+
+# Battery-aware selection parameters (used when strategy=1)
+sample-fraction = 0.5         # Fraction of available clients to select (0.0-1.0)
+                             # With 200 clients: 0.5 = 100 clients, 0.3 = 60 clients
+alpha = 2.0                   # Battery weight exponent (higher = more selective)
+                             # alpha=1.0: linear, alpha=2.0: quadratic, alpha=3.0: cubic
+min-battery-threshold = 0.2   # Minimum battery level required to participate (0.0-1.0)
+                             # Clients below this threshold are excluded from selection
 
 [tool.flwr.federations]
 default = "small-simulation"
