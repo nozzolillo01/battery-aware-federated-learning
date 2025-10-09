@@ -64,25 +64,25 @@ Federated Learning system with battery-aware client selection, designed for larg
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Flower Server                             │
+│                    Flower Server                            │
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │  FleetAwareFedAvg (Base Strategy)                      │ │
-│  │  • Battery tracking                                     │ │
-│  │  • Metrics aggregation                                  │ │
-│  │  • W&B logging                                          │ │
+│  │  • Battery tracking                                    │ │
+│  │  • Metrics aggregation                                 │ │
+│  │  • W&B logging                                         │ │
 │  └────────────────┬───────────────────────────────────────┘ │
-│                   │ uses                                     │
+│                   │ uses                                    │
 │  ┌────────────────▼───────────────────────────────────────┐ │
 │  │  ClientSelectionStrategy (Interface)                   │ │
 │  │  • select_clients(eligible, available, fleet_manager)  │ │
 │  └────────────────┬───────────────────────────────────────┘ │
-│                   │ implementations                          │
+│                   │ implementations                         │
 │         ┌─────────┴─────────┬─────────────────────┐         │
 │         ▼                   ▼                     ▼         │
-│  ┌──────────────┐   ┌──────────────┐    ┌──────────────┐  │
-│  │   Random     │   │   Battery    │    │  Your Custom │  │
-│  │   Baseline   │   │   Weighted   │    │   Strategy   │  │
-│  └──────────────┘   └──────────────┘    └──────────────┘  │
+│  ┌──────────────┐   ┌──────────────┐    ┌──────────────┐    │
+│  │   Random     │   │   Battery    │    │  Your Custom │    │
+│  │   Baseline   │   │   Weighted   │    │   Strategy   │    │
+│  └──────────────┘   └──────────────┘    └──────────────┘    │
 │                                                             │
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │  FleetManager                                          │ │
