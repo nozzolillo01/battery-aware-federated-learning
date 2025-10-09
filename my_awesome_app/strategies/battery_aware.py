@@ -22,7 +22,6 @@ class BatteryAwareClientFedAvg(FleetAwareFedAvg):
         strategy_name = kwargs.pop("strategy", "battery_aware")
         self.alpha = float(alpha)
         self.sample_fraction = float(sample_fraction)
-        self.min_battery_threshold = float(min_battery_threshold)
         selection_strategy = BatteryWeightedSelection(
             alpha=self.alpha,
             sample_fraction=sample_fraction,

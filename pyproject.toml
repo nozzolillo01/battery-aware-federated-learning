@@ -47,10 +47,10 @@ min-battery-threshold = 0.2   # Minimum battery level required to participate (0
 default = "small-simulation"
 
 [tool.flwr.federations.small-simulation]
-options.num-supernodes = 10
+options.num-supernodes = 25
 
 [tool.flwr.federations.medium-simulation]
-options.num-supernodes = 50
+options.num-supernodes = 100
 
 [tool.flwr.federations.large-simulation]
-options.num-supernodes = 200
+options.num-supernodes = 250

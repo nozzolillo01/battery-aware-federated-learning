@@ -28,7 +28,7 @@ class RandomSubsetSelection(ClientSelectionStrategy):
             return [], {client.cid: 0.0 for client in available_clients}
 
         if num_clients is None:
-            num_clients = max(1, int(round(len(eligible_clients) * self.sample_fraction)))
+            num_clients = max(1, int(len(eligible_clients) * self.sample_fraction))
         num_clients = max(1, min(num_clients, len(eligible_clients)))
 
         selected_clients = random.sample(eligible_clients, k=num_clients)

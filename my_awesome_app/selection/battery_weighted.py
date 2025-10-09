@@ -61,7 +61,7 @@ class BatteryWeightedSelection(ClientSelectionStrategy):
                 return [], {c.cid: 0.0 for c in available_clients}
 
         weights_map = fleet_manager.calculate_selection_weights([client.cid for client in eligible_clients], self.alpha)
-        weights = np.array([max(weights_map.get(client.cid, 0.0), 0.0) for client in eligible_clients], dtype=float)
+        weights = np.array([weights_map.get(client.cid, 0.0) for client in eligible_clients], dtype=float)
         if weights.sum() <= 0:
             weights = np.ones(len(eligible_clients), dtype=float)
 
