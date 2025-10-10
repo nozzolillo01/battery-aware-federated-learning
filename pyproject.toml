@@ -31,26 +31,25 @@ num-server-rounds = 10        # Number of federated learning rounds
 fraction-fit = 1.0            # Fraction of clients Flower samples (used by base FedAvg)
 local-epochs = 5              # Number of local training epochs per client
 
-# Client selection strategy
-strategy = 1                  # 0 = random_baseline (uniform random selection)
-                             # 1 = battery_aware (battery-weighted probabilistic selection)
 
-# Battery-aware selection parameters (used when strategy=1)
+selection = "battery_aware"   # Client selection strategy: "random" | "battery_aware" | your custom name
+
+# Selection parameters
 sample-fraction = 0.5         # Fraction of available clients to select (0.0-1.0)
-                             # With 200 clients: 0.5 = 100 clients, 0.3 = 60 clients
-alpha = 2.0                   # Battery weight exponent (higher = more selective)
-                             # alpha=1.0: linear, alpha=2.0: quadratic, alpha=3.0: cubic
-min-battery-threshold = 0.2   # Minimum battery level required to participate (0.0-1.0)
-                             # Clients below this threshold are excluded from selection
+
+# Battery-aware specific parameters
+alpha = 2.0                   # Battery weight exponent: weight = battery_level ^ alpha. Higher values = stronger preference for high-battery clients.
+
+min-battery-threshold = 0.2   # Minimum battery level required for eligibility (0.0-1.0). Clients below this threshold are excluded from selection.
 
 [tool.flwr.federations]
 default = "small-simulation"
 
 [tool.flwr.federations.small-simulation]
-options.num-supernodes = 25
+options.num-supernodes = 20
 
 [tool.flwr.federations.medium-simulation]
 options.num-supernodes = 100
 
 [tool.flwr.federations.large-simulation]
-options.num-supernodes = 250
+options.num-supernodes = 200

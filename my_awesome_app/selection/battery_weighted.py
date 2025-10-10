@@ -1,79 +1,106 @@
-"""Battery-aware selection strategy."""
+"""Battery-aware selection strategy - weighted probabilistic sampling."""
 
 from __future__ import annotations
-from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+
 import numpy as np
 from flwr.server.client_proxy import ClientProxy
-from .base import ClientSelectionStrategy
+
+from .base import SelectionRegistry
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..battery_simulator import FleetManager
 
 
-class BatteryWeightedSelection(ClientSelectionStrategy):
-    """Selects clients with probability based on their battery level."""
+@SelectionRegistry.register("battery_aware")
+def select_battery_aware(
+    available_clients: List[ClientProxy],
+    fleet_manager: Optional["FleetManager"],
+    params: Dict[str, any],
+) -> Tuple[List[ClientProxy], Dict[str, float]]:
+    """Select clients with probability weighted by battery level.
+    
+    Clients with higher battery levels have higher probability of selection.
+    The strength of this preference is controlled by the alpha parameter.
+    
+    This strategy filters clients by min_battery_threshold to get eligible clients,
+    then applies weighted sampling. If no clients are eligible, it falls back to
+    selecting the top 2 clients with highest battery levels.
+    
+    Args:
+        available_clients: All available clients in the round.
+        fleet_manager: Fleet manager to access battery levels.
+        params: Configuration parameters:
+            - alpha (float): Battery weight exponent (default: 2.0).
+                Higher values = stronger preference for high battery.
+                weight = battery_level ^ alpha
+            - sample_fraction (float): Fraction of available clients to select (default: 0.5).
+            - min_battery_threshold (float): Minimum battery level for eligibility (default: 0.2).
+    
+    Returns:
+        Tuple of (selected_clients, probability_map) where:
+            - selected_clients: List of selected clients (sampled by weighted probability).
+            - probability_map: Dict mapping client_id to normalized selection probability.
+    """
+    if not available_clients:
+        return [], {}
 
-    def __init__(
-        self, 
-        alpha: float = 2.0, 
-        sample_fraction: float = 0.5
-    ) -> None:
-        self.alpha = alpha
-        self.sample_fraction = sample_fraction
+    alpha = float(params.get("alpha", 2.0))
+    sample_fraction = float(params.get("sample_fraction", 0.5))
+    min_battery_threshold = float(params.get("min_battery_threshold", 0.2))
 
-    def _fallback_best_available(
-        self,
-        available_clients: List[ClientProxy],
-        fleet_manager: "FleetManager",
-        num_fallback: int = 2
-    ) -> List[ClientProxy]:
-        """Select clients with highest battery when none meet threshold."""
-        if not available_clients:
-            return []
-        levels = [(client, fleet_manager.get_battery_level(client.cid)) for client in available_clients]
+    # Filter eligible clients by battery threshold
+    eligible_ids = fleet_manager.get_eligible_clients(
+        [c.cid for c in available_clients], 
+        min_battery_threshold
+    )
+    eligible_clients = [c for c in available_clients if c.cid in eligible_ids]
+
+    # Fallback if no eligible clients: select top 2 by battery
+    if not eligible_clients:        
+        levels = [
+            (client, fleet_manager.get_battery_level(client.cid)) 
+            for client in available_clients
+        ]
         levels.sort(key=lambda item: item[1], reverse=True)
-        return [client for client, _ in levels[:min(num_fallback, len(levels))]]
-
-    def _build_probability_map(
-        self,
-        available_clients: List[ClientProxy],
-        selected_pool: List[ClientProxy],
-        probabilities: np.ndarray,
-    ) -> Dict[str, float]:
-        prob_map: Dict[str, float] = {client.cid: 0.0 for client in available_clients}
-        for client, prob in zip(selected_pool, probabilities):
-            prob_map[client.cid] = float(prob)
-        return prob_map
-
-    def select_clients(
-        self,
-        eligible_clients: List[ClientProxy],
-        available_clients: List[ClientProxy],
-        *,
-        fleet_manager: Optional["FleetManager"] = None,
-        num_clients: Optional[int] = None,
-    ) -> Tuple[List[ClientProxy], Dict[str, float]]:
-
-
+        eligible_clients = [client for client, _ in levels[:min(2, len(levels))]]
+        
         if not eligible_clients:
-            eligible_clients = self._fallback_best_available(available_clients, fleet_manager, num_fallback=2)
-            if not eligible_clients:
-                return [], {c.cid: 0.0 for c in available_clients}
+            return [], {c.cid: 0.0 for c in available_clients}
 
-        weights_map = fleet_manager.calculate_selection_weights([client.cid for client in eligible_clients], self.alpha)
-        weights = np.array([weights_map.get(client.cid, 0.0) for client in eligible_clients], dtype=float)
-        if weights.sum() <= 0:
-            weights = np.ones(len(eligible_clients), dtype=float)
+    # Calculate battery-based weights
+    weights_map = fleet_manager.calculate_selection_weights(
+        [client.cid for client in eligible_clients], 
+        alpha
+    )
+    weights = np.array(
+        [weights_map.get(client.cid, 0.0) for client in eligible_clients], 
+        dtype=float
+    )
+    
+    # Ensure valid weights
+    if weights.sum() <= 0:
+        weights = np.ones(len(eligible_clients), dtype=float)
 
-        probabilities = weights / weights.sum()
+    # Normalize to probabilities
+    probabilities = weights / weights.sum()
 
-        if num_clients is None:
-            desired = int(len(available_clients) * self.sample_fraction)
-        else:
-            desired = num_clients
-        desired = max(1, min(desired, len(eligible_clients)))
+    # Determine number of clients to select
+    desired = max(1, int(len(available_clients) * sample_fraction))
+    desired = min(desired, len(eligible_clients))
 
-        indices = np.random.choice(len(eligible_clients), size=desired, replace=False, p=probabilities)
-        selected_clients = [eligible_clients[index] for index in indices]
-        probability_map = self._build_probability_map(available_clients, eligible_clients, probabilities)
-        return selected_clients, probability_map
+    # Weighted random sampling
+    indices = np.random.choice(
+        len(eligible_clients), 
+        size=desired, 
+        replace=False, 
+        p=probabilities
+    )
+    selected_clients = [eligible_clients[index] for index in indices]
+
+    # Build probability map for all available clients
+    probability_map: Dict[str, float] = {client.cid: 0.0 for client in available_clients}
+    for client, prob in zip(eligible_clients, probabilities):
+        probability_map[client.cid] = float(prob)
+
+    return selected_clients, probability_map
