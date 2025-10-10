@@ -1,129 +1,255 @@
-# 🔋 Battery-Aware Federated Learning Framework
+# 🔋 Battery-Aware Federated Learning# 🔋 Battery-Aware Federated Learning Framework
 
-**A modular, extensible framework for energy-constrained federated learning research.**
 
-Build and evaluate custom client selection strategies with realistic battery simulation for mobile and IoT federated learning scenarios. Designed for researchers who need flexibility, reproducibility, and production-grade code quality.
 
----
+Federated learning simulation with realistic battery constraints for IoT/mobile devices.**A modular, extensible framework for energy-constrained federated learning research.**
 
-## 🎯 Why This Framework?
 
-Traditional federated learning assumes unlimited client availability. **Real-world IoT/mobile devices have battery constraints** that fundamentally change system dynamics:
 
-- 📱 **Energy heterogeneity**: Sensors, edge devices, and gateways have different consumption profiles
-- 🔋 **Battery depletion**: Clients may die mid-training, wasting compute and bandwidth  
-- ⚡ **Energy harvesting**: Solar/kinetic charging creates temporal participation patterns
-- 📊 **Fairness challenges**: Low-power devices get excluded, causing model bias
+## 🎯 Project IntentBuild and evaluate custom client selection strategies with realistic battery simulation for mobile and IoT federated learning scenarios. Designed for researchers who need flexibility, reproducibility, and production-grade code quality.
 
-**This framework lets you experiment with battery-aware selection policies** using a modular architecture that separates:
+
+
+Investigate how **battery limitations impact client selection** in federated learning. Real devices have energy constraints that traditional FL algorithms ignore—this project simulates battery consumption, energy harvesting, and explores selection strategies that account for these limitations.---
+
+
+
+## 🏗️ Architecture## 🎯 Why This Framework?
+
+
+
+```Traditional federated learning assumes unlimited client availability. **Real-world IoT/mobile devices have battery constraints** that fundamentally change system dynamics:
+
+Selection Strategy (interface)
+
+       ↓- 📱 **Energy heterogeneity**: Sensors, edge devices, and gateways have different consumption profiles
+
+    ┌─────────────┬─────────────┐- 🔋 **Battery depletion**: Clients may die mid-training, wasting compute and bandwidth  
+
+    ↓             ↓             ↓- ⚡ **Energy harvesting**: Solar/kinetic charging creates temporal participation patterns
+
+Random      Battery-Aware   Your Custom- 📊 **Fairness challenges**: Low-power devices get excluded, causing model bias
+
+            (weight ∝ battery^α)
+
+```**This framework lets you experiment with battery-aware selection policies** using a modular architecture that separates:
+
 - **Client selection logic** (your algorithm)
-- **Battery simulation** (realistic energy modeling)
-- **FL strategy** (FedAvg, aggregation, metrics)
 
----
+**Key components:**- **Battery simulation** (realistic energy modeling)
 
-## ✨ Key Features
+- `battery_simulator.py`: Energy model (consumption + harvesting)- **FL strategy** (FedAvg, aggregation, metrics)
 
-### 🏗️ **Framework Architecture**
+- `selection/*.py`: Client selection algorithms (pluggable)
+
+- `strategies/*.py`: Flower FedAvg wrappers---
+
+- `server_app.py`: Strategy factory
+
+- `client_app.py`: CNN training on CIFAR-10## ✨ Key Features
+
+
+
+## 📁 Code Structure### 🏗️ **Framework Architecture**
+
 - **Pluggable selection strategies**: Swap algorithms without changing FL code
-- **Strategy pattern implementation**: Clean separation of concerns
-- **Type-safe interfaces**: Full Python type hints for IDE support
-- **Production-ready**: Optimized, tested, and documented
 
-### 🔋 **Battery Simulation**
-- **Three device classes**: Low-power sensors, mid-range edge, high-power gateways
-- **Realistic energy modeling**: Consumption scales with training epochs
-- **Energy harvesting**: Time-proportional recharging (solar/kinetic simulation)
-- **Death handling**: Automatic detection and removal of depleted clients
+```- **Strategy pattern implementation**: Clean separation of concerns
 
-### 📊 **Built-in Observability**
-- **Weights & Biases integration**: Automatic logging of all metrics
-- **Per-client tracking**: Battery levels, selection probabilities, participation history
-- **Round-level statistics**: Fairness (Jain index), energy consumption, eligible clients
-- **Rich visualizations**: Ready-made charts for accuracy, loss, battery dynamics
+my_awesome_app/- **Type-safe interfaces**: Full Python type hints for IDE support
 
-### ⚙️ **Configuration-Driven**
+├── battery_simulator.py    # BatterySimulator + FleetManager- **Production-ready**: Optimized, tested, and documented
+
+├── selection/               # Selection algorithms
+
+│   ├── base.py             # Interface### 🔋 **Battery Simulation**
+
+│   ├── random_subset.py    # Baseline- **Three device classes**: Low-power sensors, mid-range edge, high-power gateways
+
+│   └── battery_weighted.py # Battery-aware- **Realistic energy modeling**: Consumption scales with training epochs
+
+├── strategies/              # FL strategies- **Energy harvesting**: Time-proportional recharging (solar/kinetic simulation)
+
+│   ├── base.py             # FleetAwareFedAvg (common)- **Death handling**: Automatic detection and removal of depleted clients
+
+│   ├── random_client.py
+
+│   └── battery_aware.py### 📊 **Built-in Observability**
+
+├── task.py                  # CNN + CIFAR-10 data- **Weights & Biases integration**: Automatic logging of all metrics
+
+├── client_app.py- **Per-client tracking**: Battery levels, selection probabilities, participation history
+
+└── server_app.py- **Round-level statistics**: Fairness (Jain index), energy consumption, eligible clients
+
+```- **Rich visualizations**: Ready-made charts for accuracy, loss, battery dynamics
+
+
+
+## ⚡ Quick Start### ⚙️ **Configuration-Driven**
+
 - **Zero code changes**: All parameters in `pyproject.toml`
-- **CLI overrides**: Test configurations without editing files
-- **Multiple federations**: Predefined small/medium/large simulation setups
-- **Reproducible**: Single source of truth for experimentsy-Aware Federated Learning
 
-Federated Learning system with battery-aware client selection, designed for large-scale simulations in mobile/IoT scenarios. It includes a realistic battery simulator, selection strategies, rich logging to Weights & Biases (W&B), and full reproducibility from `pyproject.toml`.
+```bash- **CLI overrides**: Test configurations without editing files
+
+# Install- **Multiple federations**: Predefined small/medium/large simulation setups
+
+pip install -e .- **Reproducible**: Single source of truth for experimentsy-Aware Federated Learning
+
+
+
+# Run with battery-aware selection (default)Federated Learning system with battery-aware client selection, designed for large-scale simulations in mobile/IoT scenarios. It includes a realistic battery simulator, selection strategies, rich logging to Weights & Biases (W&B), and full reproducibility from `pyproject.toml`.
+
+flwr run .
 
 ## 🌟 What it does (at a glance)
 
-- Battery-based client selection (weight ∝ battery_level^α, default α=2)
+# Run with random baseline
+
+flwr run . --run-config 'strategy=0'- Battery-based client selection (weight ∝ battery_level^α, default α=2)
+
 - Configurable minimum battery threshold for eligibility
-- Realistic per-client consumption/charging simulation
-- Complete metrics: client-side training/validation and centralized server-side test
-- Ready-made W&B charts: “Accuracy per round” and “Loss per round”
 
----
+# Large-scale simulation (200 clients)- Realistic per-client consumption/charging simulation
 
-## 🏗️ Framework Architecture
+flwr run . large-simulation- Complete metrics: client-side training/validation and centralized server-side test
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Flower Server                            │
+```- Ready-made W&B charts: “Accuracy per round” and “Loss per round”
+
+
+
+## 🔧 Configuration---
+
+
+
+Edit `pyproject.toml` or use CLI overrides:## 🏗️ Framework Architecture
+
+
+
+```bash```
+
+flwr run . --run-config 'alpha=3.0 sample-fraction=0.3 min-battery-threshold=0.2'┌─────────────────────────────────────────────────────────────┐
+
+```│                    Flower Server                            │
+
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │  FleetAwareFedAvg (Base Strategy)                      │ │
-│  │  • Battery tracking                                    │ │
-│  │  • Metrics aggregation                                 │ │
-│  │  • W&B logging                                         │ │
-│  └────────────────┬───────────────────────────────────────┘ │
+
+**Key parameters:**│  │  FleetAwareFedAvg (Base Strategy)                      │ │
+
+- `strategy`: `0` (random) or `1` (battery-aware)│  │  • Battery tracking                                    │ │
+
+- `alpha`: Battery preference strength (default: 2.0)│  │  • Metrics aggregation                                 │ │
+
+- `sample-fraction`: % of clients to select (default: 0.5)│  │  • W&B logging                                         │ │
+
+- `min-battery-threshold`: Minimum battery for eligibility (default: 0.2)│  └────────────────┬───────────────────────────────────────┘ │
+
 │                   │ uses                                    │
-│  ┌────────────────▼───────────────────────────────────────┐ │
+
+## 📊 Battery Model│  ┌────────────────▼───────────────────────────────────────┐ │
+
 │  │  ClientSelectionStrategy (Interface)                   │ │
-│  │  • select_clients(eligible, available, fleet_manager)  │ │
-│  └────────────────┬───────────────────────────────────────┘ │
-│                   │ implementations                         │
+
+```│  │  • select_clients(eligible, available, fleet_manager)  │ │
+
+Energy consumption = consumption_rate × local_epochs│  └────────────────┬───────────────────────────────────────┘ │
+
+Energy harvesting  = harvesting_rate × local_epochs│                   │ implementations                         │
+
 │         ┌─────────┴─────────┬─────────────────────┐         │
-│         ▼                   ▼                     ▼         │
-│  ┌──────────────┐   ┌──────────────┐    ┌──────────────┐    │
+
+Update: battery -= consumption, then battery += harvesting│         ▼                   ▼                     ▼         │
+
+```│  ┌──────────────┐   ┌──────────────┐    ┌──────────────┐    │
+
 │  │   Random     │   │   Battery    │    │  Your Custom │    │
-│  │   Baseline   │   │   Weighted   │    │   Strategy   │    │
+
+**3 device classes:** low-power sensors, mid-edge devices, high-power gateways (different consumption/harvesting rates)│  │   Baseline   │   │   Weighted   │    │   Strategy   │    │
+
 │  └──────────────┘   └──────────────┘    └──────────────┘    │
-│                                                             │
+
+## 🎨 Extend with Custom Strategy│                                                             │
+
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │  FleetManager                                          │ │
-│  │  • Battery levels per client                           │ │
-│  │  • Participation statistics                            │ │
-│  │  • Fairness metrics (Jain index)                       │ │
-│  └────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
+
+```python│  │  FleetManager                                          │ │
+
+# 1. Create selection/my_strategy.py│  │  • Battery levels per client                           │ │
+
+class MySelection(ClientSelectionStrategy):│  │  • Participation statistics                            │ │
+
+    def select_clients(self, eligible_clients, available_clients, ...):│  │  • Fairness metrics (Jain index)                       │ │
+
+        # Your logic here│  └────────────────────────────────────────────────────────┘ │
+
+        return selected, prob_map└─────────────────────────────────────────────────────────────┘
+
 ```
 
-### Directory Structure
+# 2. Create strategies/my_custom.py
 
-```
-app_battery/
+class MyCustomStrategy(FleetAwareFedAvg):### Directory Structure
+
+    def __init__(self, *args, **kwargs):
+
+        selection_strategy = MySelection()```
+
+        super().__init__(..., selection_strategy=selection_strategy, ...)app_battery/
+
 ├── my_awesome_app/
-│   ├── task.py                    # ML task: CNN + CIFAR-10 + data partitioning
-│   ├── battery_simulator.py      # Battery physics + fleet management
-│   │
-│   ├── selection/                 # 🔌 Selection strategies (pluggable)
-│   │   ├── base.py               # ClientSelectionStrategy interface
-│   │   ├── random_subset.py      # Baseline: uniform random
-│   │   └── battery_weighted.py   # Battery-aware probabilistic selection
-│   │
-│   ├── strategies/                # Flower FedAvg implementations
-│   │   ├── base.py               # FleetAwareFedAvg (common logic)
-│   │   ├── random_client.py      # Random strategy wrapper
-│   │   └── battery_aware.py      # Battery strategy wrapper
-│   │
-│   ├── client_app.py              # Flower ClientApp
-│   ├── server_app.py              # Flower ServerApp + strategy factory
-│   └── __init__.py
-│
-├── pyproject.toml                 # Configuration + dependencies
-├── README.md                      # This file
-├── EXAMPLES.md                    # Step-by-step extension tutorial
-└── CHANGES.md                     # Framework improvement history
-```
 
-**Design Principles:**
+# 3. Register in server_app.py│   ├── task.py                    # ML task: CNN + CIFAR-10 + data partitioning
+
+```│   ├── battery_simulator.py      # Battery physics + fleet management
+
+│   │
+
+See `EXAMPLES.md` for complete tutorial.│   ├── selection/                 # 🔌 Selection strategies (pluggable)
+
+│   │   ├── base.py               # ClientSelectionStrategy interface
+
+## 📈 Monitoring│   │   ├── random_subset.py      # Baseline: uniform random
+
+│   │   └── battery_weighted.py   # Battery-aware probabilistic selection
+
+W&B integration logs:│   │
+
+- Accuracy/loss per round (train, val, test)│   ├── strategies/                # Flower FedAvg implementations
+
+- Battery levels per client│   │   ├── base.py               # FleetAwareFedAvg (common logic)
+
+- Selection probabilities│   │   ├── random_client.py      # Random strategy wrapper
+
+- Fairness metrics (Jain index)│   │   └── battery_aware.py      # Battery strategy wrapper
+
+│   │
+
+```bash│   ├── client_app.py              # Flower ClientApp
+
+wandb login  # Enable W&B│   ├── server_app.py              # Flower ServerApp + strategy factory
+
+# or│   └── __init__.py
+
+export WANDB_DISABLED=true  # Disable│
+
+```├── pyproject.toml                 # Configuration + dependencies
+
+├── README.md                      # This file
+
+## 🔨 Tech Stack├── EXAMPLES.md                    # Step-by-step extension tutorial
+
+└── CHANGES.md                     # Framework improvement history
+
+Flower (FL) · PyTorch · CIFAR-10 · Weights & Biases```
+
+
+
+---**Design Principles:**
+
 - 🔌 **Dependency Injection**: Strategies receive selection policy at construction
-- 🎯 **Single Responsibility**: Each module has one clear purpose
+
+**Design:** Modular selection strategies + realistic energy simulation for FL research- 🎯 **Single Responsibility**: Each module has one clear purpose
+
 - 🔄 **Open/Closed**: Extend via new strategies, don't modify base classes
 - 📘 **Interface Segregation**: Selection strategies implement minimal interface
 
