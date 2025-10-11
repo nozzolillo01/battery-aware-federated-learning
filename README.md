@@ -35,7 +35,7 @@ my_awesome_app/
 ```bash
 pip install -e .
 flwr run .                                            # random by default
-flwr run . --run-config 'selection=battery_aware'     # battery_aware strategy
+flwr run . --run-config 'selection="battery_aware"'   # battery_aware strategy
 flwr run . large-simulation                           # 200 clients
 ```
 
@@ -47,8 +47,8 @@ flwr run . large-simulation                           # 200 clients
 
 Override from CLI:
 ```bash
-flwr run . --run-config 'selection=random'
-flwr run . --run-config 'selection=battery_aware alpha=3.0 sample-fraction=0.3'
+flwr run . --run-config 'selection="random"'
+flwr run . --run-config 'selection="battery_aware" alpha=3.0 sample-fraction=0.3'
 ```
 
 ## Battery model
@@ -135,7 +135,7 @@ sample-fraction = 0.5
 flwr run . --run-config 'selection=my_custom my-param=2.0'
 ```
 
-**That's it!** No need to modify `server_app.py` or create strategy classes.
+**That's it!**.
 
 **List available strategies:**
 ```bash

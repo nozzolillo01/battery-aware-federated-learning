@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "battery-aware-fl"
 version = "1.0.0"
-description = "Simple battery-aware federated learning"
+description = "Simple framework for easily implementing a new strategy for battery-aware client selection in federated learning"
 license = "Apache-2.0"
 dependencies = [
     "flwr[simulation]>=1.15.2",
@@ -19,7 +19,7 @@ dependencies = [
 packages = ["."]
 
 [tool.flwr.app]
-publisher = "angelo"
+publisher = "angelo andrea nozzolillo"
 
 [tool.flwr.app.components]
 serverapp = "my_awesome_app.server_app:app"
