@@ -97,11 +97,6 @@ class FleetManager:
         self.client_recharged_battery: Dict[str, float] = {}
         self.client_consumed_battery: Dict[str, float] = {}
     
-    @property
-    def unique_clients_ever_used(self) -> set:
-        """Return set of clients that have participated at least once."""
-        return set(self.client_participation_count.keys())
-    
     def add_client(self, client_id: str) -> BatterySimulator:
         """Add a new client with battery simulator if not already registered."""
         if client_id not in self.clients:

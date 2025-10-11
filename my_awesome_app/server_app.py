@@ -23,17 +23,6 @@ from .task import Net, get_weights, load_centralized_dataset, set_weights, test
 logging.getLogger("flwr").setLevel(logging.CRITICAL)
 os.environ["WANDB_SILENT"] = "true"
 
-def get_num_supernodes_from_config() -> int:
-    for i, arg in enumerate(sys.argv):
-        if arg.startswith("--num-supernodes"):
-            value: Optional[str] = None
-            if "=" in arg:
-                value = arg.split("=", 1)[1]
-            elif i + 1 < len(sys.argv):
-                value = sys.argv[i + 1]
-            if value is not None:
-                return int(value)
-
 def evaluate_global_model(server_round, parameters_ndarrays, config, testloader, device):
     """Evaluate the global model using a centralized test set."""
     model = Net()
@@ -78,12 +67,22 @@ def fit_metrics_weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
         "val_accuracy": val_accuracy_sum / total_examples,
     }
 
+def get_num_supernodes_from_config() -> int:
+    for i, arg in enumerate(sys.argv):
+        if arg.startswith("--num-supernodes"):
+            value: Optional[str] = None
+            if "=" in arg:
+                value = arg.split("=", 1)[1]
+            elif i + 1 < len(sys.argv):
+                value = sys.argv[i + 1]
+            if value is not None:
+                return int(value)
+
 def server_fn(context: Context) -> ServerAppComponents:
     """Create and configure the universal FL server with pluggable selection.
     
     This function creates a single universal strategy that works with any
-    selection function registered in SelectionRegistry. No code changes needed
-    to add new selection strategies - just register them and use in config.
+    selection function registered in SelectionRegistry.
     """
     # Read configuration
     num_rounds = context.run_config["num-server-rounds"]

@@ -1,16 +1,11 @@
 """Battery-aware selection strategy - weighted probabilistic sampling."""
 
-from __future__ import annotations
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
-
-import numpy as np
 from flwr.server.client_proxy import ClientProxy
+from typing import TYPE_CHECKING, List, Dict, Optional, Tuple
 
+from ..battery_simulator import FleetManager
 from .base import SelectionRegistry
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ..battery_simulator import FleetManager
-
+import numpy as np
 
 @SelectionRegistry.register("battery_aware")
 def select_battery_aware(
