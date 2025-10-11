@@ -1,14 +1,10 @@
-"""
-Flower server application for federated learning with battery-aware client selection.
-
-This universal server works with any registered selection strategy through
-the SelectionRegistry. No need to modify this file when adding new strategies.
-"""
+"""Flower server application with battery-aware client selection."""
 
 import logging
-import os
+
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from flwr.common import Context, FitRes, Metrics, Parameters, ndarrays_to_parameters
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
@@ -19,12 +15,13 @@ from .battery_simulator import FleetManager
 from .selection import SelectionRegistry
 from .task import Net, get_weights, load_centralized_dataset, set_weights, test
 
-# Configure logging and environment
 logging.getLogger("flwr").setLevel(logging.CRITICAL)
-os.environ["WANDB_SILENT"] = "true"
+#import os
+#os.environ["WANDB_SILENT"] = "true"
+
 
 def evaluate_global_model(server_round, parameters_ndarrays, config, testloader, device):
-    """Evaluate the global model using a centralized test set."""
+    """Evaluate global model on test set."""
     model = Net()
     set_weights(model, parameters_ndarrays)
     model.to(device)
@@ -32,33 +29,29 @@ def evaluate_global_model(server_round, parameters_ndarrays, config, testloader,
 
     return loss, {"test_accuracy_server": accuracy}
 
-def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
-    """Aggregate client metrics using weighted average."""
+def weighted_average(metrics):
+    """Weighted average of metrics."""
     accuracies = [num_examples * m["accuracy"] for num_examples, m in metrics]
     total_examples = sum(num_examples for num_examples, _ in metrics)
+    return {"accuracy": sum(accuracies) / total_examples if total_examples > 0 else 0}
 
-    return { "accuracy": sum(accuracies) / total_examples if total_examples > 0 else 0 }
-
-def fit_metrics_weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
-    """Aggregate client fit metrics using weighted averages by sample size."""
+def fit_metrics_weighted_average(metrics):
+    """Weighted average of fit metrics."""
     total_examples = sum(num_examples for num_examples, _ in metrics)
     if total_examples == 0:
         return {}
 
-    train_loss_sum = 0.0
-    train_accuracy_sum = 0.0
-    val_loss_sum = 0.0
-    val_accuracy_sum = 0.0
+    train_loss_sum = train_accuracy_sum = val_loss_sum = val_accuracy_sum = 0.0
 
     for num_examples, m in metrics:
         if "train_loss" in m and m["train_loss"] is not None:
-            train_loss_sum += num_examples * float(m["train_loss"])
+            train_loss_sum += num_examples * m["train_loss"]
         if "train_accuracy" in m and m["train_accuracy"] is not None:
-            train_accuracy_sum += num_examples * float(m["train_accuracy"])
+            train_accuracy_sum += num_examples * m["train_accuracy"]
         if "val_loss" in m and m["val_loss"] is not None:
-            val_loss_sum += num_examples * float(m["val_loss"])
+            val_loss_sum += num_examples * m["val_loss"]
         if "val_accuracy" in m and m["val_accuracy"] is not None:
-            val_accuracy_sum += num_examples * float(m["val_accuracy"])
+            val_accuracy_sum += num_examples * m["val_accuracy"]
 
     return {
         "train_loss": train_loss_sum / total_examples,
@@ -67,10 +60,10 @@ def fit_metrics_weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
         "val_accuracy": val_accuracy_sum / total_examples,
     }
 
-def get_num_supernodes_from_config() -> int:
+def get_num_supernodes_from_config():
     for i, arg in enumerate(sys.argv):
         if arg.startswith("--num-supernodes"):
-            value: Optional[str] = None
+            value = None
             if "=" in arg:
                 value = arg.split("=", 1)[1]
             elif i + 1 < len(sys.argv):
@@ -78,41 +71,27 @@ def get_num_supernodes_from_config() -> int:
             if value is not None:
                 return int(value)
 
-def server_fn(context: Context) -> ServerAppComponents:
-    """Create and configure the universal FL server with pluggable selection.
-    
-    This function creates a single universal strategy that works with any
-    selection function registered in SelectionRegistry.
-    """
-    # Read configuration
+
+def server_fn(context):
+    """Create and configure FL server."""
     num_rounds = context.run_config["num-server-rounds"]
     fraction_fit = context.run_config["fraction-fit"]
     local_epochs = int(context.run_config.get("local-epochs", 5))
-    
-    # Selection strategy configuration
     selection_name = context.run_config.get("selection", "battery_aware")
     sample_fraction = float(context.run_config.get("sample-fraction", 0.5))
     alpha = float(context.run_config.get("alpha", 2.0))
     min_battery_threshold = float(context.run_config.get("min-battery-threshold", 0.2))
-    
     num_supernodes = get_num_supernodes_from_config()
 
-    # Initialize model and test data
     ndarrays = get_weights(Net())
     parameters = ndarrays_to_parameters(ndarrays)
     testloader = load_centralized_dataset()
 
-    # Get selection function from registry (raises error if not found)
     selection_fn = SelectionRegistry.get(selection_name)
-    
-    # Prepare parameters dict for selection function
     selection_params = {
         "sample_fraction": sample_fraction,
         "alpha": alpha,
-        # Add any other custom params here - they'll be passed to selection function
     }
-
-    # Print configuration header
     print(f"num-supernodes = {num_supernodes}")
     print(f"num-server-rounds = {num_rounds}")
     print(f"local-epochs = {local_epochs}")
@@ -122,15 +101,12 @@ def server_fn(context: Context) -> ServerAppComponents:
         print(f"alpha = {alpha}")
         print(f"min-battery-threshold = {min_battery_threshold}")
 
-    # Initialize fleet manager and W&B
     from datetime import datetime
     from zoneinfo import ZoneInfo
     import wandb
     import numpy as np
     
     fleet_manager = FleetManager()
-    
-    # Initialize W&B
     tz = ZoneInfo("Europe/Rome")
     timestamp = datetime.now(tz).strftime("%Y-%m-%d_%H:%M:%S")
     try:
@@ -147,77 +123,58 @@ def server_fn(context: Context) -> ServerAppComponents:
                 "min_battery_threshold": min_battery_threshold,
             },
         )
-        wandb.define_metric("round")
-        wandb.define_metric("*", step="round")
     except Exception:
         pass
 
-    # State tracking for logging
     class ServerState:
-        """Tracks server state across rounds."""
+        """Server state tracking."""
         def __init__(self):
             self.last_selected_count = 0
-            self.last_selected_battery_avg: Optional[float] = None
-            self.last_selected_battery_min: Optional[float] = None
+            self.last_selected_battery_avg = None
+            self.last_selected_battery_min = None
             self.last_deaths_count = 0
             self.current_eligible_count = 0
-            self.prev_battery_levels: Dict[str, float] = {}
-            self.client_id_order: List[str] = []
-            self.rounds_since_selected: Dict[str, int] = {}
-            self.selected_for_fit_last_round: List[str] = []
-            self.last_train_accuracy: Optional[float] = None
-            self.last_train_loss: Optional[float] = None
-            self.last_server_test: Dict[str, Any] = {}
+            self.prev_battery_levels = {}
+            self.client_id_order = []
+            self.rounds_since_selected = {}
+            self.selected_for_fit_last_round = []
+            self.last_train_accuracy = None
+            self.last_train_loss = None
+            self.last_server_test = {}
             self.acc_series = {"train": [], "val": [], "test": []}
             self.loss_series = {"train": [], "val": [], "test": []}
 
     state = ServerState()
 
-    # Create universal strategy with battery awareness
     class UniversalBatteryAwareFedAvg(FedAvg):
-        """Universal FedAvg strategy with pluggable client selection and battery tracking."""
+        """FedAvg with pluggable selection and battery tracking."""
 
-        def configure_fit(
-            self,
-            server_round: int,
-            parameters: Parameters,
-            client_manager: Any,
-        ) -> List[Tuple[ClientProxy, Dict[str, Any]]]:
+        def configure_fit(self, server_round, parameters, client_manager):
             """Configure clients for training."""
-            # Get base configuration from parent FedAvg
             original_config = super().configure_fit(server_round, parameters, client_manager)
             if not original_config:
                 return []
 
-            # Extract available clients and config
             available_clients = [client for client, _ in original_config]
             config = original_config[0][1] if original_config else {}
 
-            # Call selection function
             selected_clients, prob_map = selection_fn(
                 available_clients=available_clients,
                 fleet_manager=fleet_manager,
                 params=selection_params,
             )
 
-            # Track eligible count for logging
             eligible_ids = fleet_manager.get_eligible_clients(
-                [c.cid for c in available_clients],
-                min_battery_threshold,
+                [c.cid for c in available_clients], min_battery_threshold
             )
             state.current_eligible_count = len(eligible_ids)
 
-            # Ensure probability map covers all clients
             prob_map = {c.cid: prob_map.get(c.cid, 0.0) for c in available_clients}
-
             selected_client_ids = [c.cid for c in selected_clients]
             available_client_ids = [c.cid for c in available_clients]
 
-            # Check for battery deaths during training
             deaths = fleet_manager.get_dead_clients(selected_client_ids, local_epochs)
             state.last_deaths_count = len(deaths)
-
-            # Capture stats before battery update
             if selected_client_ids:
                 levels = [fleet_manager.get_battery_level(cid) for cid in selected_client_ids]
                 state.last_selected_battery_avg = sum(levels) / len(levels) if levels else None
@@ -227,10 +184,8 @@ def server_fn(context: Context) -> ServerAppComponents:
                 state.last_selected_battery_min = None
             state.last_selected_count = len(selected_client_ids)
 
-            # Update battery levels (consume for selected, recharge for all)
             fleet_manager.update_round(selected_client_ids, available_client_ids, local_epochs)
 
-            # Log to W&B
             _log_selection_to_wandb(
                 server_round,
                 available_clients,
@@ -242,18 +197,11 @@ def server_fn(context: Context) -> ServerAppComponents:
                 state,
             )
 
-            # Remove dead clients from selection
             selected_clients = [c for c in selected_clients if c.cid not in deaths]
             state.selected_for_fit_last_round = [c.cid for c in selected_clients]
-
             return [(client, config) for client in selected_clients]
 
-        def configure_evaluate(
-            self,
-            server_round: int,
-            parameters: Parameters,
-            client_manager: Any,
-        ) -> List[Tuple[ClientProxy, Dict[str, Any]]]:
+        def configure_evaluate(self, server_round, parameters, client_manager):
             """Configure clients for evaluation (only those that trained)."""
             original = super().configure_evaluate(server_round, parameters, client_manager)
             if not original or not state.selected_for_fit_last_round:
@@ -263,18 +211,12 @@ def server_fn(context: Context) -> ServerAppComponents:
             filtered = [(c, cfg) for (c, cfg) in original if c.cid in selected_set]
             return filtered if filtered else original
 
-        def aggregate_fit(
-            self,
-            server_round: int,
-            results: List[Tuple[ClientProxy, FitRes]],
-            failures: List[Tuple[ClientProxy, FitRes]],
-        ) -> Tuple[Optional[Parameters], Dict[str, Any]]:
+        def aggregate_fit(self, server_round, results, failures):
             """Aggregate fit results and add battery metrics."""
             parameters_aggregated, metrics_aggregated = super().aggregate_fit(
                 server_round, results, failures
             )
 
-            # Add battery metrics
             fleet_stats = fleet_manager.get_fleet_stats(min_battery_threshold)
             battery_metrics = {
                 "fleet_avg_battery": fleet_stats.get("avg_battery", 0.0),
@@ -287,17 +229,11 @@ def server_fn(context: Context) -> ServerAppComponents:
                 metrics_aggregated = {}
             metrics_aggregated.update(battery_metrics)
 
-            # Save train metrics for later logging
             state.last_train_accuracy = metrics_aggregated.get("train_accuracy")
             state.last_train_loss = metrics_aggregated.get("train_loss")
-
             return parameters_aggregated, metrics_aggregated
 
-        def evaluate(
-            self,
-            server_round: int,
-            parameters: Parameters,
-        ) -> Optional[Tuple[float, Dict[str, Any]]]:
+        def evaluate(self, server_round, parameters):
             """Evaluate global model on centralized test set."""
             result = super().evaluate(server_round, parameters)
             if result is not None:
@@ -305,17 +241,11 @@ def server_fn(context: Context) -> ServerAppComponents:
                 state.last_server_test = {"loss": loss, **metrics}
             return result
 
-        def aggregate_evaluate(
-            self,
-            server_round: int,
-            results: List[Tuple[ClientProxy, FitRes]],
-            failures: List[Tuple[ClientProxy, FitRes]],
-        ) -> Tuple[Optional[float], Dict[str, Any]]:
+        def aggregate_evaluate(self, server_round, results, failures):
             """Aggregate evaluation results and log complete metrics."""
 
             loss, metrics = super().aggregate_evaluate(server_round, results, failures)
 
-            # Prepare complete metrics
             fleet_stats = fleet_manager.get_fleet_stats(min_battery_threshold)
             analysis_results = {
                 "round": server_round,
@@ -334,17 +264,14 @@ def server_fn(context: Context) -> ServerAppComponents:
                 "deaths_clients": state.last_deaths_count,
             }
 
-            # Add client validation metrics
             analysis_results["val_accuracy_client"] = round(float(metrics.get("accuracy", 0.0)), 4)
             analysis_results["val_loss_client"] = round(loss, 4)
 
-            # Add train metrics if available
             if state.last_train_accuracy is not None:
                 analysis_results["train_accuracy_client"] = float(state.last_train_accuracy)
             if state.last_train_loss is not None:
                 analysis_results["train_loss_client"] = float(state.last_train_loss)
 
-            # Add server test metrics if available
             if state.last_server_test:
                 if "test_accuracy_server" in state.last_server_test:
                     analysis_results["test_accuracy_server"] = round(
@@ -356,34 +283,27 @@ def server_fn(context: Context) -> ServerAppComponents:
                     )
             state.last_server_test = {}
 
-            # Log to W&B
             _log_results_to_wandb(server_round, analysis_results, state)
-
-            # Print summary
             _print_evaluation_summary(server_round, analysis_results, num_supernodes)
-
             return loss, metrics
 
-    # Helper functions for logging (defined outside class to keep it clean)
     def _log_selection_to_wandb(
-        server_round: int,
-        available_clients: List[ClientProxy],
-        selected_client_ids: List[str],
-        eligible_ids: List[str],
-        prob_map: Dict[str, float],
-        deaths_ids: List[str],
-        fleet_mgr: FleetManager,
-        state_obj: ServerState,
-    ) -> None:
-        """Log client selection details to W&B."""
-        # Update client order
+        server_round,
+        available_clients,
+        selected_client_ids,
+        eligible_ids,
+        prob_map,
+        deaths_ids,
+        fleet_mgr,
+        state_obj,
+    ):
+        """Log selection to W&B."""
         newly_seen = [c.cid for c in available_clients if c.cid not in state_obj.client_id_order]
         if newly_seen:
             state_obj.client_id_order.extend(newly_seen)
             state_obj.client_id_order = sorted(state_obj.client_id_order)
 
-        # Collect present client data
-        present_data: Dict[str, Dict[str, Any]] = {}
+        present_data = {}
         for c in available_clients:
             cid = c.cid
             battery = fleet_mgr.get_battery_level(cid)
@@ -401,7 +321,6 @@ def server_fn(context: Context) -> ServerAppComponents:
                 "eligible": int(cid in eligible_ids),
             }
 
-        # Update rounds since selected
         for cid in state_obj.client_id_order:
             if cid in selected_client_ids:
                 state_obj.rounds_since_selected[cid] = 0
@@ -411,7 +330,6 @@ def server_fn(context: Context) -> ServerAppComponents:
                 else:
                     state_obj.rounds_since_selected[cid] = 1 if cid not in selected_client_ids else 0
 
-        # Create W&B table
         columns = [
             "round",
             "client_id",
@@ -475,16 +393,11 @@ def server_fn(context: Context) -> ServerAppComponents:
         except Exception:
             pass
 
-        # Update previous battery levels
         for c in available_clients:
             state_obj.prev_battery_levels[c.cid] = fleet_mgr.get_battery_level(c.cid)
 
-    def _log_results_to_wandb(
-        server_round: int,
-        analysis_results: Dict[str, Any],
-        state_obj: ServerState,
-    ) -> None:
-        """Log aggregated results and charts to W&B."""
+    def _log_results_to_wandb(server_round, analysis_results, state_obj):
+        """Log results to W&B."""
         wandb_payload = {
             k: v for k, v in analysis_results.items() if k not in ["round"] and v is not None
         }
@@ -493,10 +406,8 @@ def server_fn(context: Context) -> ServerAppComponents:
         except Exception:
             pass
 
-        # Update series and create charts
         try:
-
-            def _append(target: List[Optional[float]], value: Optional[Any]) -> None:
+            def _append(target, value):
                 target.append(float(value) if value is not None else None)
 
             _append(state_obj.acc_series["train"], analysis_results.get("train_accuracy_client"))
@@ -548,12 +459,8 @@ def server_fn(context: Context) -> ServerAppComponents:
         except Exception:
             pass
 
-    def _print_evaluation_summary(
-        server_round: int,
-        analysis_results: Dict[str, Any],
-        total_supernodes: Optional[int],
-    ) -> None:
-        """Print round evaluation summary to console."""
+    def _print_evaluation_summary(server_round, analysis_results, total_supernodes):
+        """Print round summary."""
         try:
             val_acc = analysis_results.get("val_accuracy_client")
             val_loss = analysis_results.get("val_loss_client")
@@ -587,7 +494,6 @@ def server_fn(context: Context) -> ServerAppComponents:
         except Exception:
             pass
 
-    # Create the universal strategy instance
     strategy = UniversalBatteryAwareFedAvg(
         fraction_fit=fraction_fit,
         fraction_evaluate=1.0,
@@ -602,5 +508,4 @@ def server_fn(context: Context) -> ServerAppComponents:
     return ServerAppComponents(strategy=strategy, config=config)
 
 
-# Register server app
 app = ServerApp(server_fn=server_fn)

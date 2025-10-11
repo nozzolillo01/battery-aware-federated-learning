@@ -1,7 +1,5 @@
 """Registry for client selection strategies."""
 
-from typing import Callable, Dict, List
-
 
 class SelectionRegistry:
     """Simple registry for selection strategies.
@@ -12,7 +10,7 @@ class SelectionRegistry:
             return selected_clients, probability_map
     """
 
-    _strategies: Dict[str, Callable] = {}
+    _strategies = {}
 
     @classmethod
     def register(cls, name: str):
@@ -31,6 +29,6 @@ class SelectionRegistry:
         return cls._strategies[name]
 
     @classmethod
-    def list_all(cls) -> List[str]:
+    def list_all(cls):
         """List all registered strategies."""
         return sorted(cls._strategies.keys())

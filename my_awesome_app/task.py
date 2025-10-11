@@ -1,7 +1,4 @@
-"""
-Task module for federated learning.
-Implements a CNN model and data loading utilities.
-"""
+"""ML model and data loading utilities."""
 
 import torch
 import torch.nn as nn
@@ -12,9 +9,11 @@ from flwr_datasets.partitioner import DirichletPartitioner
 from torchvision.transforms import Compose, Normalize, ToTensor
 from flwr_datasets import FederatedDataset
 
+
 class Net(nn.Module):
-    """ LeNet-style CNN for 32x32 RGB images."""
-    def __init__(self, num_classes: int = 10):
+    """LeNet-style CNN."""
+    
+    def __init__(self, num_classes=10):
         super(Net, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
@@ -32,16 +31,16 @@ class Net(nn.Module):
         return self.fc3(x)
 
 fds = None
-
 pytorch_transforms = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
+
 def apply_transforms(batch):
-    """Apply transforms to the partition from FederatedDataset."""
     batch["img"] = [pytorch_transforms(img) for img in batch["img"]]
     return batch
 
-def load_data(partition_id: int, num_partitions: int, batch_size: int):
-    """Load partition CIFAR10 data."""
+
+def load_data(partition_id, num_partitions, batch_size):
+    """Load partitioned CIFAR10 data."""
     global fds
     if fds is None:
         partitioner = DirichletPartitioner(num_partitions=num_partitions, alpha=0.1, partition_by="label", min_partition_size=1)
@@ -59,13 +58,13 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int):
     return trainloader, testloader
 
 def load_centralized_dataset():
-    """Load test set and return dataloader."""
+    """Load centralized test set."""
     test_dataset = load_dataset("uoft-cs/cifar10", split="test")
     dataset = test_dataset.with_format("torch").with_transform(apply_transforms)
     return DataLoader(dataset, batch_size=128)
 
-def train(net, trainloader, epochs: int, lr: float, device: torch.device):
-    """Train a neural network on the given data."""
+def train(net, trainloader, epochs, lr, device):
+    """Train the network."""
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss().to(device)
     optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9)
@@ -91,8 +90,8 @@ def train(net, trainloader, epochs: int, lr: float, device: torch.device):
     
     return epoch_loss, epoch_acc
 
-def test(net, testloader, device: torch.device):
-    """Test a neural network on the given data."""
+def test(net, testloader, device):
+    """Test the network."""
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss().to(device)
     correct, loss = 0, 0.0
@@ -113,15 +112,15 @@ def test(net, testloader, device: torch.device):
     return loss, accuracy
 
 def get_weights(net):
-    """Extract model weights as a list of NumPy arrays."""
+    """Extract model weights."""
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
 def set_weights(net, parameters):
-    """Set model weights from a list of NumPy arrays."""
+    """Set model weights."""
     params_dict = zip(net.state_dict().keys(), parameters)
     state_dict = {k: torch.tensor(v) for k, v in params_dict}
     net.load_state_dict(state_dict, strict=True)
 
 def get_transforms():
-    """Return the transforms used for the dataset."""
+    """Return transforms."""
     return Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])

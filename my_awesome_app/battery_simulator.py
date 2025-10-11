@@ -1,16 +1,12 @@
 """Battery simulation for federated learning clients."""
 
 import random
-from typing import Dict, List
 
 
 class BatterySimulator:
-    """
-    Simulates battery behavior for a federated learning client device.
-    Tracks battery levels, consumption during training, and recharging when idle.
-    """
+    """Simulates battery behavior for a client device."""
 
-    DEVICE_CLASSES: Dict[str, Dict[str, tuple]] = {
+    DEVICE_CLASSES = {
         "low_power_sensor": {
             "consumption_range": (0.005, 0.015),
             "harvesting_range": (0.0, 0.010),
@@ -25,8 +21,8 @@ class BatterySimulator:
         },
     }
     
-    def __init__(self, client_id: str, device_class: str = None):
-        """Initialize battery simulator with random device class and energy parameters."""
+    def __init__(self, client_id, device_class=None):
+        """Initialize battery simulator."""
         self.client_id = client_id
         self.battery_level = random.uniform(0.1, 1.0)
         self.total_consumption = 0.0
@@ -40,8 +36,8 @@ class BatterySimulator:
         self.consumption_for_epochs = random.uniform(cmin, cmax)
         self.harvesting_capability = random.uniform(hmin, hmax)
 
-    def recharge_battery(self, local_epochs: int = 1) -> float:
-        """Recharge battery through energy harvesting and return effective harvested amount."""
+    def recharge_battery(self, local_epochs=1):
+        """Recharge battery through energy harvesting."""
         previous_level = self.battery_level
         epochs = max(1, int(local_epochs))
         harvested = self.harvesting_capability * epochs
@@ -49,23 +45,18 @@ class BatterySimulator:
         effective_harvested = self.battery_level - previous_level
         return effective_harvested
 
-    def can_participate(self, min_threshold: float = 0.0) -> bool:
-        """Check if client has more battery than the minimum threshold"""
+    def can_participate(self, min_threshold=0.0):
+        """Check if client has sufficient battery."""
         return self.battery_level >= min_threshold 
 
-    def enough_battery_for_training(self, local_epochs: int) -> bool:
-        """Check if battery level is sufficient to complete the training epochs for one round."""
+    def enough_battery_for_training(self, local_epochs):
+        """Check if battery is sufficient for training."""
         epochs = max(1, int(local_epochs))
         needed = self.consumption_for_epochs * epochs
         return self.battery_level >= needed
 
-    def consume_battery(self, local_epochs: int) -> bool:
-        """
-        Consume battery for training and return whether training completed successfully.
-        
-        Battery consumption is proportional to the number of local training epochs.
-        If battery runs out during training, consumes all remaining battery and returns False.
-        """
+    def consume_battery(self, local_epochs):
+        """Consume battery for training."""
         epochs = max(1, int(local_epochs))
         needed = self.consumption_for_epochs * epochs
         
@@ -83,47 +74,42 @@ class BatterySimulator:
 
 
 class FleetManager:
-    """
-    Manages a fleet of client devices with battery simulation.
-    
-    Handles client selection, weight calculation, and battery updates.
-    Tracks participation statistics for fairness evaluation.
-    """
+    """Manages a fleet of client devices with battery simulation."""
     
     def __init__(self):
-        """Initialize fleet manager with empty client tracking structures."""
-        self.clients: Dict[str, BatterySimulator] = {}
-        self.client_participation_count: Dict[str, int] = {}
-        self.client_recharged_battery: Dict[str, float] = {}
-        self.client_consumed_battery: Dict[str, float] = {}
+        """Initialize fleet manager."""
+        self.clients = {}
+        self.client_participation_count = {}
+        self.client_recharged_battery = {}
+        self.client_consumed_battery = {}
     
-    def add_client(self, client_id: str) -> BatterySimulator:
-        """Add a new client with battery simulator if not already registered."""
+    def add_client(self, client_id):
+        """Add a new client."""
         if client_id not in self.clients:
             self.clients[client_id] = BatterySimulator(client_id)
         return self.clients[client_id]
 
-    def get_battery_level(self, client_id: str) -> float:
-        """Get current battery level for a specific client."""
+    def get_battery_level(self, client_id):
+        """Get battery level."""
         if client_id not in self.clients:
             self.add_client(client_id)
         return self.clients[client_id].battery_level
 
-    def get_device_class(self, client_id: str) -> str:
-        """Get device class type for a specific client."""
+    def get_device_class(self, client_id):
+        """Get device class."""
         if client_id not in self.clients:
             self.add_client(client_id)
         return getattr(self.clients[client_id], "device_class", "unknown")
 
-    def get_dead_clients(self, selected_clients: List[str], local_epochs: int) -> List[str]:
-        """Identify the devices that did not complete the training because they ran out of battery during it."""
+    def get_dead_clients(self, selected_clients, local_epochs):
+        """Get clients that ran out of battery."""
         return [
             cid for cid in selected_clients 
             if not self.clients[cid].enough_battery_for_training(local_epochs)
         ]
 
-    def get_eligible_clients(self, client_ids: List[str], min_threshold: float = 0.0) -> List[str]:
-        """Filter clients that meet minimum battery threshold for participation."""
+    def get_eligible_clients(self, client_ids, min_threshold=0.0):
+        """Filter clients by battery threshold."""
         for client_id in client_ids:
             if client_id not in self.clients:
                 self.add_client(client_id)
@@ -133,8 +119,8 @@ class FleetManager:
             if self.clients[cid].can_participate(min_threshold)
         ]
 
-    def calculate_selection_weights(self, client_ids: List[str], alpha: float = 2.0) -> Dict[str, float]:
-        """Calculate selection weights based on battery levels with exponential scaling."""
+    def calculate_selection_weights(self, client_ids, alpha=2.0):
+        """Calculate selection weights (battery^alpha)."""
         weights = {}
         for client_id in client_ids:
             if client_id not in self.clients:
@@ -143,8 +129,8 @@ class FleetManager:
             weights[client_id] = battery_level ** alpha
         return weights
 
-    def update_round(self, selected_clients: List[str], all_clients: List[str], local_epochs: int) -> None:
-        """Update battery levels after training round and track participation statistics."""
+    def update_round(self, selected_clients, all_clients, local_epochs):
+        """Update battery levels after training round."""
         for client_id in all_clients:
             if client_id not in self.clients:
                 self.add_client(client_id)
@@ -161,8 +147,8 @@ class FleetManager:
             recharged = self.clients[client_id].recharge_battery(local_epochs)
             self.client_recharged_battery[client_id] = recharged
   
-    def get_fleet_stats(self, min_threshold: float = 0.0) -> Dict[str, float]:
-        """Calculate comprehensive fleet statistics including battery levels and fairness metrics."""
+    def get_fleet_stats(self, min_threshold=0.0):
+        """Calculate fleet statistics."""
         if not self.clients:
             return {
                 "avg_battery": 0,

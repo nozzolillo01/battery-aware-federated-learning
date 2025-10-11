@@ -1,25 +1,12 @@
-"""Random subset selection strategy - uniform random sampling."""
-
+"""Random selection strategy."""
 
 import random
-from flwr.server.client_proxy import ClientProxy
-from typing import TYPE_CHECKING, List, Dict, Optional, Tuple
-
-from ..battery_simulator import FleetManager
 from .base import SelectionRegistry
 
 
 @SelectionRegistry.register("random")
-def select_random(
-    available_clients: List[ClientProxy],
-    fleet_manager: Optional["FleetManager"],
-    params: Dict[str, any],
-) -> Tuple[List[ClientProxy], Dict[str, float]]:
-    """Select clients uniformly at random from ALL available clients.
-    
-    This is the baseline selection strategy that completely ignores battery levels
-    and eligibility criteria. It samples a random subset of ALL available clients.
-    """
+def select_random(available_clients, fleet_manager, params):
+    """Select clients uniformly at random."""
     if not available_clients:
         return [], {}
 

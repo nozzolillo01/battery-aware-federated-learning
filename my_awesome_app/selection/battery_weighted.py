@@ -1,42 +1,12 @@
-"""Battery-aware selection strategy - weighted probabilistic sampling."""
+"""Battery-aware selection strategy."""
 
-from flwr.server.client_proxy import ClientProxy
-from typing import TYPE_CHECKING, List, Dict, Optional, Tuple
-
-from ..battery_simulator import FleetManager
-from .base import SelectionRegistry
 import numpy as np
+from .base import SelectionRegistry
+
 
 @SelectionRegistry.register("battery_aware")
-def select_battery_aware(
-    available_clients: List[ClientProxy],
-    fleet_manager: Optional["FleetManager"],
-    params: Dict[str, any],
-) -> Tuple[List[ClientProxy], Dict[str, float]]:
-    """Select clients with probability weighted by battery level.
-    
-    Clients with higher battery levels have higher probability of selection.
-    The strength of this preference is controlled by the alpha parameter.
-    
-    This strategy filters clients by min_battery_threshold to get eligible clients,
-    then applies weighted sampling. If no clients are eligible, it falls back to
-    selecting the top 2 clients with highest battery levels.
-    
-    Args:
-        available_clients: All available clients in the round.
-        fleet_manager: Fleet manager to access battery levels.
-        params: Configuration parameters:
-            - alpha (float): Battery weight exponent (default: 2.0).
-                Higher values = stronger preference for high battery.
-                weight = battery_level ^ alpha
-            - sample_fraction (float): Fraction of available clients to select (default: 0.5).
-            - min_battery_threshold (float): Minimum battery level for eligibility (default: 0.2).
-    
-    Returns:
-        Tuple of (selected_clients, probability_map) where:
-            - selected_clients: List of selected clients (sampled by weighted probability).
-            - probability_map: Dict mapping client_id to normalized selection probability.
-    """
+def select_battery_aware(available_clients, fleet_manager, params):
+    """Select clients weighted by battery level (weight = battery^alpha)."""
     if not available_clients:
         return [], {}
 
@@ -94,7 +64,7 @@ def select_battery_aware(
     selected_clients = [eligible_clients[index] for index in indices]
 
     # Build probability map for all available clients
-    probability_map: Dict[str, float] = {client.cid: 0.0 for client in available_clients}
+    probability_map = {client.cid: 0.0 for client in available_clients}
     for client, prob in zip(eligible_clients, probabilities):
         probability_map[client.cid] = float(prob)
 
